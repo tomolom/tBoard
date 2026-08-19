@@ -342,6 +342,76 @@ code {
   padding: 0.45rem 0.7rem;
 }
 
+/*
+ * Remote-connect entry point. Anchored popover in the topbar cluster, using
+ * the same treatment as the quick-add composer so the two read as siblings.
+ */
+.remote-anchor {
+  position: relative;
+}
+
+.remote-trigger {
+  align-items: center;
+  display: flex;
+  gap: 0.4rem;
+}
+
+.remote-popover {
+  animation: composer-pop 130ms ease-out;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+  display: grid;
+  gap: 0.7rem;
+  padding: 0.9rem;
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.5rem);
+  width: 22rem;
+  z-index: 30;
+}
+
+.remote-popover h2 {
+  font-size: 0.98rem;
+  margin: 0;
+}
+
+.remote-note {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  line-height: 1.45;
+  margin: -0.25rem 0 0;
+}
+
+.remote-popover .field {
+  min-width: 0;
+}
+
+.remote-popover input {
+  width: 100%;
+}
+
+.remote-error {
+  background: var(--deleted-soft);
+  border: 1px solid var(--danger-border);
+  border-radius: 10px;
+  color: var(--danger-text);
+  font-size: 0.82rem;
+  margin: 0;
+  padding: 0.55rem 0.7rem;
+}
+
+.remote-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.15rem;
+}
+
+.remote-actions button {
+  flex: 1 1 auto;
+}
+
 .field {
   display: grid;
   gap: 0.3rem;
@@ -921,6 +991,7 @@ code {
   .drawer-overlay,
   .drawer,
   .card-composer,
+  .remote-popover,
   .login-card {
     animation: none;
   }

@@ -27,6 +27,10 @@ const api: TBoardApi = {
   clipboard: {
     writeText: (text: string) => ipcRenderer.invoke('clipboard:writeText', text),
   },
+  connection: {
+    getRemoteUrl: () => ipcRenderer.invoke('settings:getRemoteUrl'),
+    setRemoteUrl: (url: string | null) => ipcRenderer.invoke('settings:setRemoteUrl', url),
+  },
   onDbChanged: (callback: () => void) => {
     // Wrap so the raw IpcRendererEvent is never handed to the renderer, and
     // return an unsubscribe that removes exactly this listener.

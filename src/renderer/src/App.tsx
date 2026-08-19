@@ -199,6 +199,14 @@ export default function App() {
   const [newType, setNewType] = useState<CardType>('task');
   const [newPriority, setNewPriority] = useState<CardPriority>('normal');
   const [creating, setCreating] = useState(false);
+  const [remoteOpen, setRemoteOpen] = useState(false);
+  const [remoteUrl, setRemoteUrl] = useState('');
+  const [remoteError, setRemoteError] = useState<string | null>(null);
+  const [remoteBusy, setRemoteBusy] = useState(false);
+  const remoteRef = useRef<HTMLDivElement | null>(null);
+  const remoteInputRef = useRef<HTMLInputElement | null>(null);
+  const remoteTriggerRef = useRef<HTMLButtonElement | null>(null);
+
   const [composerOpen, setComposerOpen] = useState(false);
   const composerRef = useRef<HTMLDivElement | null>(null);
   const composerTitleRef = useRef<HTMLInputElement | null>(null);
@@ -487,6 +495,43 @@ export default function App() {
       renameInputRef.current?.select();
     }
   }, [renaming]);
+
+  /**
+   * Opens the remote-connect popover, pre-filling whatever URL is stored. The
+   * connection bridge is desktop-only, so every call site guards on it first.
+   */
+  function openRemotePopover(): void {
+    setRemoteError(null);
+    setRemoteOpen(true);
+    void window.tBoard.connection?.getRemoteUrl().then((url) => {
+      setRemoteUrl(url ?? '');
+    });
+  }
+
+  async function connectRemote(): Promise<void> {
+    const url = remoteUrl.trim();
+    if (remoteBusy || url === '') {
+      return;
+    }
+    const connection = window.tBoard.connection;
+    if (!connection) {
+      return;
+    }
+    setRemoteBusy(true);
+    setRemoteError(null);
+    try {
+      // On success the main process reloads the window onto the hosted board,
+      // so there is nothing to do here but surface a failure.
+      const result = await connection.setRemoteUrl(url);
+      if (!result.ok) {
+        setRemoteError(result.error ?? 'Could not connect to that address.');
+        setRemoteBusy(false);
+      }
+    } catch (error) {
+      setRemoteError(error instanceof Error ? error.message : String(error));
+      setRemoteBusy(false);
+    }
+  }
 
   async function addBoard(): Promise<void> {
     setBoardError(null);
@@ -856,6 +901,36 @@ export default function App() {
 
   useFocusTrap(composerOpen, composerRef, { initialFocusRef: composerTitleRef });
 
+  // Remote-connect popover: same dismissal contract as the quick-add composer.
+  useEffect(() => {
+    if (!remoteOpen) {
+      return;
+    }
+    function onKeyDown(event: KeyboardEvent): void {
+      if (event.key === 'Escape') {
+        setRemoteOpen(false);
+      }
+    }
+    function onPointerDown(event: MouseEvent): void {
+      const target = event.target;
+      if (!(target instanceof Node)) {
+        return;
+      }
+      if (remoteRef.current?.contains(target) || remoteTriggerRef.current?.contains(target)) {
+        return;
+      }
+      setRemoteOpen(false);
+    }
+    document.addEventListener('keydown', onKeyDown);
+    document.addEventListener('mousedown', onPointerDown);
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+      document.removeEventListener('mousedown', onPointerDown);
+    };
+  }, [remoteOpen]);
+
+  useFocusTrap(remoteOpen, remoteRef, { initialFocusRef: remoteInputRef });
+
   // Adding a card with no board selected is not possible — keep them in sync.
   useEffect(() => {
     if (selectedBoardId === null) {
@@ -1061,6 +1136,36 @@ export default function App() {
             {addingBoard ? 'Adding\u2026' : 'Add Repo'}
           </button>
 
+          {window.tBoard.connection ? (
+            <div className="remote-anchor">
+              <button
+                type="button"
+                className="quiet remote-trigger"
+                ref={remoteTriggerRef}
+                onClick={() => (remoteOpen ? setRemoteOpen(false) : openRemotePopover())}
+                aria-expanded={remoteOpen}
+                aria-haspopup="dialog"
+                title="Connect this app to a self-hosted tBoard server"
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  width="1em"
+                  height="1em"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M6.5 19a4.5 4.5 0 0 1-.5-8.97 6 6 0 0 1 11.66-1.2A4 4 0 0 1 18 19z" />
+                </svg>
+                Connect Remote
+              </button>
+              {remoteOpen ? renderRemotePopover() : null}
+            </div>
+          ) : null}
+
           {selectedBoard ? (
             removeArmed ? (
               <span className="remove-confirm">
@@ -1080,6 +1185,61 @@ export default function App() {
           ) : null}
         </div>
       </header>
+    );
+  }
+
+  function renderRemotePopover() {
+    return (
+      <div
+        className="remote-popover"
+        ref={remoteRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Connect to remote board"
+      >
+        <h2>Connect to a Remote Board</h2>
+        <p className="remote-note">
+          Point this app at your self-hosted tBoard server. Local boards stay on this machine and remain the
+          default.
+        </p>
+        <label className="field">
+          <span>Server Address</span>
+          <input
+            ref={remoteInputRef}
+            value={remoteUrl}
+            onChange={(event) => setRemoteUrl(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                event.preventDefault();
+                void connectRemote();
+              }
+            }}
+            placeholder="https://board.example.com"
+            type="url"
+            spellCheck={false}
+            autoComplete="off"
+            disabled={remoteBusy}
+          />
+        </label>
+        {remoteError ? (
+          <p className="error remote-error" role="alert">
+            {remoteError}
+          </p>
+        ) : null}
+        <div className="remote-actions">
+          <button
+            type="button"
+            className="primary"
+            onClick={() => void connectRemote()}
+            disabled={remoteBusy || remoteUrl.trim() === ''}
+          >
+            {remoteBusy ? 'Connecting\u2026' : 'Connect'}
+          </button>
+          <button type="button" onClick={() => setRemoteOpen(false)} disabled={remoteBusy}>
+            Cancel
+          </button>
+        </div>
+      </div>
     );
   }
 

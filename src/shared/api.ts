@@ -134,6 +134,15 @@ export type TBoardApi = {
     writeText(text: string): Promise<ClipboardWriteResult>;
   };
   /**
+   * Local↔remote connection control (desktop app only; absent in web mode).
+   * Setting a URL persists it and makes the app reload as the hosted board;
+   * clearing it (null) returns to local-first mode.
+   */
+  connection?: {
+    getRemoteUrl(): Promise<string | null>;
+    setRemoteUrl(url: string | null): Promise<{ ok: boolean; error: string | null }>;
+  };
+  /**
    * Subscribes to database-change notifications (e.g. an agent writing through
    * the standalone MCP server). Fires after a debounce whenever the underlying
    * SQLite file or its WAL sibling changes. Returns an unsubscribe function.

@@ -104,6 +104,18 @@ It also exposes a `tboard://boards` resource. Every call is logged to an `mcp_ev
 
 The database path is resolved by a shared, Electron-free helper, so the app and the MCP server agree by construction. Because both can open the file at once, the connection uses WAL mode with a busy timeout.
 
+## Self-hosting (optional)
+
+tBoard is local-first by default, but you can optionally host it on your own domain — password-protected, not indexed — and view the same board from a browser or from the desktop app in "remote" mode. It ships a hardened Fastify server (session-cookie auth, strict Origin + CSRF, scrypt password, SSE live updates) that reuses the same board logic.
+
+```bash
+npm run server:hash-password -- "a long passphrase"   # make a password hash
+npm run build                                          # builds the server bundle too
+npm run server:push -- https://board.example.com       # (optional) seed it with your local board
+```
+
+Full VPS + TLS + systemd walkthrough: **[docs/SELF_HOSTING.md](docs/SELF_HOSTING.md)**.
+
 ## Tech stack
 
 **Electron** · **React 19** · **TypeScript** · **Vite / electron-vite** · **SQLite** (`better-sqlite3`, N-API prebuilds) · **@modelcontextprotocol/sdk** · **Vitest**

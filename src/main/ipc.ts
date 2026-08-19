@@ -14,7 +14,12 @@ import { listBranches } from './services/gitBranches';
 import { listModules } from './services/repoModules';
 import { SettingsService } from './services/settingsService';
 
-export function registerIpcHandlers(db: SqliteDatabase): void {
+export type IpcOptions = {
+  /** Called after the renderer sets a remote URL, so main can reload the window. */
+  onRemoteUrlChanged?: () => void;
+};
+
+export function registerIpcHandlers(db: SqliteDatabase, options: IpcOptions = {}): void {
   const settings = new SettingsService(db);
   const boards = new BoardService(db);
   const cards = new CardService(db);
@@ -59,6 +64,17 @@ export function registerIpcHandlers(db: SqliteDatabase): void {
 
   ipcMain.handle('settings:getLastBoardId', () => settings.getLastBoardId());
   ipcMain.handle('settings:setLastBoardId', (_event, boardId: number | null) => settings.setLastBoardId(boardId));
+
+  ipcMain.handle('settings:getRemoteUrl', () => settings.getRemoteUrl());
+  ipcMain.handle('settings:setRemoteUrl', (_event, url: unknown): { ok: boolean; error: string | null } => {
+    try {
+      settings.setRemoteUrl(typeof url === 'string' || url === null ? url : null);
+      options.onRemoteUrlChanged?.();
+      return { ok: true, error: null };
+    } catch (error) {
+      return { ok: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
 
   ipcMain.handle('clipboard:writeText', (_event, text: unknown): ClipboardWriteResult => {
     if (typeof text !== 'string') {
