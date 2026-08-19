@@ -79,6 +79,9 @@ async function main() {
   const cookie = `__Host-tboard_session=${jar['__Host-tboard_session']}; __Host-tboard_csrf=${jar['__Host-tboard_csrf']}`;
   const csrf = jar['__Host-tboard_csrf'];
   const authHeaders = { 'content-type': 'application/json', origin, cookie, 'x-csrf-token': csrf };
+  // DELETE/GET carry no body; sending content-type: application/json with an
+  // empty body makes Fastify 400 ('Body cannot be empty'). Omit it for those.
+  const bodilessHeaders = { origin, cookie, 'x-csrf-token': csrf };
   console.log('Authenticated to remote.');
 
   // In mirror mode, delete every existing remote board first (cards cascade),
@@ -86,7 +89,7 @@ async function main() {
   if (replace) {
     const existing = await (await fetch(`${origin}/api/boards`, { headers: { cookie } })).json();
     for (const b of existing) {
-      const res = await fetch(`${origin}/api/boards/${b.id}`, { method: 'DELETE', headers: authHeaders });
+      const res = await fetch(`${origin}/api/boards/${b.id}`, { method: 'DELETE', headers: bodilessHeaders });
       console.log(`  - removed remote board "${b.name}" (#${b.id}): ${res.ok ? 'ok' : 'FAILED ' + res.status}`);
     }
   }
