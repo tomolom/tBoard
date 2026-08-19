@@ -15,14 +15,20 @@ async function main(): Promise<void> {
   const db = createDatabase(dbPath);
   runMigrations(db);
 
-  // Locate the built renderer next to this file (out/renderer) or in dev source.
+  // Locate the BUILT renderer (out/renderer). Order matters: never serve
+  // src/renderer (its index.html references /src/main.tsx, a dev-only path that
+  // would render a blank page when served over HTTP). `out/renderer` under cwd
+  // is checked first (covers `npm run server:dev` from the repo root); the
+  // bundled server (out/server/index.js) falls back to its sibling out/renderer.
   const here = dirname(fileURLToPath(import.meta.url));
   const candidates = [
-    join(here, '../renderer'),
-    join(here, '../../out/renderer'),
     join(process.cwd(), 'out/renderer'),
+    join(here, '../../out/renderer'),
+    join(here, '../renderer'),
   ];
-  const staticRoot = candidates.find((candidate) => existsSync(join(candidate, 'index.html')));
+  const staticRoot = candidates.find(
+    (candidate) => existsSync(join(candidate, 'index.html')) && !candidate.endsWith(join('src', 'renderer')),
+  );
 
   const app = await buildServer({
     db,
