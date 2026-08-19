@@ -17,7 +17,7 @@ function createMainWindow(): BrowserWindow {
     minHeight: 700,
     show: false,
     webPreferences: {
-      preload: path.join(__dirname, '../preload/index.mjs'),
+      preload: path.join(__dirname, '../preload/index.cjs'),
       contextIsolation: true,
       sandbox: true,
       nodeIntegration: false,

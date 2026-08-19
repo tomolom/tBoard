@@ -9,6 +9,19 @@ export default defineConfig({
   },
   preload: {
     plugins: [externalizeDepsPlugin()],
+    build: {
+      rollupOptions: {
+        output: {
+          // The window uses sandbox: true, and Electron requires a sandboxed
+          // preload to be CommonJS. package.json has "type": "module", so a
+          // plain .js/.mjs preload is treated as ESM and fails to load
+          // ("Cannot use import statement outside a module"), leaving
+          // window.tBoard undefined. Force a CommonJS .cjs preload.
+          format: 'cjs',
+          entryFileNames: '[name].cjs',
+        },
+      },
+    },
   },
   renderer: {
     root: 'src/renderer',
