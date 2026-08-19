@@ -1,7 +1,7 @@
 {
   "name": "tboard",
-  "version": "0.1.0",
-  "description": "Local-first workflow board for source-to-target repo mapping and evidence tracking.",
+  "version": "0.2.0",
+  "description": "A local-first Kanban board for your git repos — one board per repo, cards tied to real branches, with a built-in MCP server so agents can drive it too.",
   "main": "out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",
@@ -16,13 +16,33 @@
     "dist:dir": "electron-vite build && electron-builder --dir",
     "postinstall": "electron-builder install-app-deps"
   },
-  "keywords": [],
+  "keywords": [
+    "kanban",
+    "board",
+    "git",
+    "electron",
+    "react",
+    "typescript",
+    "sqlite",
+    "mcp",
+    "model-context-protocol",
+    "local-first",
+    "project-management"
+  ],
   "author": {
     "name": "tomol"
   },
-  "license": "UNLICENSED",
+  "license": "MIT",
   "private": true,
   "type": "module",
+  "homepage": "https://github.com/tomolom/tBoard#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tomolom/tBoard.git"
+  },
+  "bugs": {
+    "url": "https://github.com/tomolom/tBoard/issues"
+  },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0",
     "better-sqlite3": "^13.0.3",
