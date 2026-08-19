@@ -7,7 +7,9 @@
 # a compiler or an Electron download. Debian base (glibc) matches the prebuild.
 
 # --- build stage: install deps + build renderer/server bundles --------------
-FROM node:20-bookworm-slim AS build
+# Node 22, not 20: better-sqlite3 v13's linux prebuild segfaults on Node 20
+# (verified: same prebuild EXIT 139 on node:20, LOAD_OK on node:22).
+FROM node:22-bookworm-slim AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
 # --ignore-scripts skips the root's electron-builder postinstall (dev-only) and
@@ -17,7 +19,7 @@ COPY . .
 RUN npm run build
 
 # --- runtime stage: only production deps + built output ---------------------
-FROM node:20-bookworm-slim AS runtime
+FROM node:22-bookworm-slim AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 # Only the prod deps the external-bundled server needs (fastify, better-sqlite3…).
