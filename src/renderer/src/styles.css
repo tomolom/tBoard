@@ -451,6 +451,102 @@ code {
   margin-top: 0.75rem;
 }
 
+/*
+ * Web-mode login gate. Full-viewport centring with a faint accent glow behind
+ * the card so the dark background does not read as an empty page.
+ */
+.login-screen {
+  align-items: center;
+  background:
+    radial-gradient(60rem 32rem at 50% -12%, var(--accent-soft), transparent 68%),
+    var(--bg);
+  box-sizing: border-box;
+  display: flex;
+  justify-content: center;
+  min-height: 100%;
+  padding: 1.5rem;
+}
+
+.login-card {
+  animation: login-rise 200ms ease-out;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  box-shadow: var(--shadow);
+  box-sizing: border-box;
+  display: grid;
+  gap: 0.85rem;
+  justify-items: stretch;
+  max-width: 100%;
+  padding: 2rem;
+  width: 24rem;
+}
+
+.login-mark {
+  align-items: center;
+  background: var(--accent-soft);
+  border: 1px solid var(--border-strong);
+  border-radius: 14px;
+  color: var(--accent-text);
+  display: flex;
+  height: 2.75rem;
+  justify-content: center;
+  justify-self: center;
+  width: 2.75rem;
+}
+
+.login-card h1 {
+  font-size: 1.5rem;
+  justify-self: center;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+
+.login-sub {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  margin: 0 0 0.4rem;
+  text-align: center;
+}
+
+.login-card input {
+  width: 100%;
+}
+
+.login-card .primary {
+  padding-block: 0.7rem;
+  width: 100%;
+}
+
+.login-error {
+  background: var(--deleted-soft);
+  border: 1px solid var(--danger-border);
+  border-radius: 10px;
+  color: var(--danger-text);
+  font-size: 0.85rem;
+  margin: 0;
+  padding: 0.6rem 0.75rem;
+  text-align: center;
+}
+
+/* Pre-auth connecting phase — same centred frame so it never looks broken. */
+.login-status {
+  max-width: 100%;
+  width: 24rem;
+}
+
+@keyframes login-rise {
+  from {
+    opacity: 0;
+    transform: translateY(0.5rem);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .board-panel {
   display: flex;
   flex: 1 1 auto;
@@ -824,7 +920,8 @@ code {
 @media (prefers-reduced-motion: reduce) {
   .drawer-overlay,
   .drawer,
-  .card-composer {
+  .card-composer,
+  .login-card {
     animation: none;
   }
 }

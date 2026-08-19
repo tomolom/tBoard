@@ -15,6 +15,7 @@
     "server:dev": "tsx src/server/index.ts",
     "server:build": "node scripts/buildServer.mjs",
     "server:hash-password": "tsx scripts/hashPassword.mjs",
+    "server:push": "tsx scripts/pushToRemote.mjs",
     "db:embed": "node scripts/generateEmbeddedMigrations.mjs",
     "dist": "electron-vite build && electron-builder",
     "dist:dir": "electron-vite build && electron-builder --dir",

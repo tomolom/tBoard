@@ -46,7 +46,11 @@ export function WebApp(): JSX.Element {
   }, [client]);
 
   if (phase === 'checking' || !client) {
-    return <p className="empty">Connecting&hellip;</p>;
+    return (
+      <div className="login-screen">
+        <p className="empty login-status">Connecting&hellip;</p>
+      </div>
+    );
   }
   if (phase === 'login') {
     return <LoginGate client={client} onLoggedIn={handleLoggedIn} />;
@@ -80,6 +84,21 @@ function LoginGate({ client, onLoggedIn }: { client: RemoteClient; onLoggedIn: (
   return (
     <div className="login-screen">
       <form className="login-card" onSubmit={(event) => void submit(event)}>
+        <span className="login-mark" aria-hidden="true">
+          <svg
+            viewBox="0 0 24 24"
+            width="1.15em"
+            height="1.15em"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <rect x="4" y="10.5" width="16" height="9.5" rx="2.5" />
+            <path d="M8 10.5V7a4 4 0 0 1 8 0v3.5" />
+          </svg>
+        </span>
         <h1>tBoard</h1>
         <p className="login-sub">Enter the board password to continue.</p>
         <input
@@ -94,7 +113,11 @@ function LoginGate({ client, onLoggedIn }: { client: RemoteClient; onLoggedIn: (
         <button type="submit" className="primary" disabled={busy || password.length === 0}>
           {busy ? 'Signing in…' : 'Sign in'}
         </button>
-        {error ? <p className="error login-error">{error}</p> : null}
+        {error ? (
+          <p className="error login-error" role="alert">
+            {error}
+          </p>
+        ) : null}
       </form>
     </div>
   );
