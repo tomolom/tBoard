@@ -35,4 +35,6 @@ ENV TBOARD_SERVER_HOST=0.0.0.0
 ENV TBOARD_SERVER_PORT=8787
 EXPOSE 8787
 
-CMD ["node", "out/server/index.js"]
+# ENTRYPOINT (not CMD) so extra args append: `docker run <image>` starts the
+# server, and `docker run <image> hash "passphrase"` runs the hash subcommand.
+ENTRYPOINT ["node", "out/server/index.js"]

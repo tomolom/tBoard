@@ -7,9 +7,34 @@ import { createDatabase, getRuntimeDatabasePath } from '../main/db/connection';
 import { runMigrations } from '../main/db/migrations';
 import { watchDatabase } from '../main/dbWatcher';
 import { buildServer } from './app';
+import { hashPassword } from './auth';
 import { loadServerConfig } from './config';
 
+/**
+ * `node out/server/index.js hash "passphrase"` prints a scrypt hash and exits,
+ * so the published Docker image can generate a password hash with no source
+ * checkout and no env vars:
+ *   docker run --rm ghcr.io/tomolom/tboard hash "a long passphrase"
+ */
+function runHashCommand(): boolean {
+  if (process.argv[2] !== 'hash') {
+    return false;
+  }
+  const password = process.argv.slice(3).join(' ').trim();
+  if (password.length < 12) {
+    // eslint-disable-next-line no-console
+    console.error('Usage: hash "<passphrase>"  (at least 12 characters)');
+    process.exit(1);
+  }
+  // eslint-disable-next-line no-console
+  console.log(hashPassword(password));
+  return true;
+}
+
 async function main(): Promise<void> {
+  if (runHashCommand()) {
+    return;
+  }
   const config = loadServerConfig();
   const dbPath = getRuntimeDatabasePath();
   const db = createDatabase(dbPath);

@@ -6,22 +6,52 @@ tBoard is **local-first by default** — the desktop app owns a local SQLite fil
 
 ---
 
-## Fastest path: Docker Compose (recommended)
+## Fastest path: prebuilt image (no clone, no build)
 
-This bundles the server + Caddy (automatic HTTPS). On a fresh VPS with Docker installed:
+CI publishes a ready-to-run image to `ghcr.io/tomolom/tboard`, so a VPS never needs the source. The whole deploy is **one compose file + a `.env`**.
+
+First, point your domain's DNS **A record** at the VPS. Then, on the VPS (Docker installed):
+
+```bash
+mkdir tboard && cd tboard
+curl -O https://raw.githubusercontent.com/tomolom/tBoard/main/docker-compose.prod.yml
+
+# Generate a password hash straight from the image — no source, no local Node:
+docker run --rm ghcr.io/tomolom/tboard hash "a long passphrase"
+
+# Create .env with the three values (paste the hash from the command above):
+cat > .env <<'EOF'
+DOMAIN=board.example.com
+TBOARD_PUBLIC_ORIGIN=https://board.example.com
+TBOARD_AUTH_PASSWORD_HASH=scrypt:...
+EOF
+
+docker compose -f docker-compose.prod.yml up -d
+```
+
+Caddy gets a TLS cert automatically (zero-config). The tBoard container is never exposed to the internet directly — only Caddy's 80/443 are published. Visit `https://your-domain` and log in.
+
+**Update later** (pulls the new image, no rebuild):
+
+```bash
+docker compose -f docker-compose.prod.yml pull && docker compose -f docker-compose.prod.yml up -d
+```
+
+> The image is published from `main` on every push. If the GHCR package is private, either make it public once in your GitHub package settings, or `docker login ghcr.io` on the VPS before pulling.
+
+## Alternative: build from source with Docker
+
+If you'd rather build on the box (or changed the code):
 
 ```bash
 git clone https://github.com/tomolom/tBoard.git && cd tBoard
 cp .env.example .env
-# Make a password hash (needs Node locally, or run it inside the build image):
-npm run server:hash-password -- "a long passphrase"
-nano .env        # set DOMAIN, TBOARD_PUBLIC_ORIGIN, TBOARD_AUTH_PASSWORD_HASH
+npm run server:hash-password -- "a long passphrase"   # or: docker run --rm <built-image> hash "..."
+nano .env        # DOMAIN, TBOARD_PUBLIC_ORIGIN, TBOARD_AUTH_PASSWORD_HASH
 docker compose up -d --build
 ```
 
-Point your domain's DNS **A record** at the VPS first. Caddy fetches a TLS cert automatically; the tBoard container is never exposed to the internet directly (only Caddy's 80/443 are published). Visit `https://your-domain` and log in. Update later with `git pull && docker compose up -d --build`.
-
-The manual (systemd) path below is the alternative if you'd rather not use Docker.
+The manual (systemd) path below is the alternative if you'd rather not use Docker at all.
 
 ## Architecture
 

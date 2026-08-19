@@ -1,0 +1,51 @@
+# Turnkey VPS deploy from a PREBUILT image — no source checkout, no build.
+#
+# On the VPS (with Docker installed):
+#   mkdir tboard && cd tboard
+#   curl -O https://raw.githubusercontent.com/tomolom/tBoard/main/docker-compose.prod.yml
+#   # generate a password hash straight from the image (no source needed):
+#   docker run --rm ghcr.io/tomolom/tboard hash "a long passphrase"
+#   # create .env with DOMAIN, TBOARD_PUBLIC_ORIGIN, TBOARD_AUTH_PASSWORD_HASH
+#   docker compose -f docker-compose.prod.yml up -d
+#
+# Update later:
+#   docker compose -f docker-compose.prod.yml pull && docker compose -f docker-compose.prod.yml up -d
+
+services:
+  tboard:
+    image: ghcr.io/tomolom/tboard:latest
+    restart: unless-stopped
+    environment:
+      TBOARD_PUBLIC_ORIGIN: ${TBOARD_PUBLIC_ORIGIN}
+      TBOARD_AUTH_PASSWORD_HASH: ${TBOARD_AUTH_PASSWORD_HASH}
+      TBOARD_DB_PATH: /data/tboard.sqlite
+      TBOARD_SERVER_HOST: 0.0.0.0
+      TBOARD_SERVER_PORT: "8787"
+      # Only Caddy can reach this container (port not published), so trusting
+      # the proxy for real client IPs is safe.
+      TBOARD_TRUST_PROXY: "true"
+    volumes:
+      - tboard-data:/data
+    expose:
+      - "8787"
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    # Zero-config automatic HTTPS: no Caddyfile needed. ${DOMAIN} is read from
+    # .env. The caddy image's ENTRYPOINT is already `caddy`, so command must NOT
+    # repeat it.
+    command: reverse-proxy --from ${DOMAIN} --to tboard:8787
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - tboard
+
+volumes:
+  tboard-data:
+  caddy-data:
+  caddy-config:
