@@ -19,6 +19,24 @@ const FILTER_ALL = '\u0000all';
 const FILTER_NONE = '\u0000none';
 
 /**
+ * The connection bridge only exists on the Electron preload, so its absence is
+ * the reliable "served over HTTP" signal. Checked lazily rather than at module
+ * scope because web mode assigns `window.tBoard` after this module is imported.
+ */
+function isWebMode(): boolean {
+  return !window.tBoard.connection;
+}
+
+/**
+ * On the hosted server the git repos are not on disk, so a repo read always
+ * fails with a path from someone else's machine. Branch and module are
+ * free-text there, so the failure is not actionable — drop it.
+ */
+function repoReadError(error: string | null): string | null {
+  return isWebMode() ? null : error;
+}
+
+/**
  * Where a dragged card would land: immediately before `beforeCardId`, or at the
  * end of the column when that is null.
  */
@@ -190,6 +208,9 @@ export default function App() {
 
   const [dragCardId, setDragCardId] = useState<number | null>(null);
   const [dropSpot, setDropSpot] = useState<DropSpot | null>(null);
+  const kanbanRef = useRef<HTMLDivElement | null>(null);
+  const autoScrollFrameRef = useRef<number | null>(null);
+  const autoScrollVectorRef = useRef({ x: 0, y: 0 });
 
   const [newTitle, setNewTitle] = useState('');
   const [newBranch, setNewBranch] = useState('');
@@ -314,7 +335,7 @@ export default function App() {
     ]);
     setBranches(branchResult.branches);
     setCurrentBranch(branchResult.current);
-    setBranchError(branchResult.error);
+    setBranchError(repoReadError(branchResult.error));
     setModules(moduleList);
     if (syncNewBranch) {
       setNewBranch(branchResult.current ?? '');
@@ -386,7 +407,7 @@ export default function App() {
         setCards(cardList);
         setBranches(branchResult.branches);
         setCurrentBranch(branchResult.current);
-        setBranchError(branchResult.error);
+        setBranchError(repoReadError(branchResult.error));
         setModules(moduleList);
         // New cards default to whatever the repo has checked out.
         setNewBranch(branchResult.current ?? '');
@@ -433,6 +454,82 @@ export default function App() {
     });
     return unsubscribe;
   }, []);
+
+  /*
+   * Edge auto-scroll while dragging a card. This listens on the document rather
+   * than hooking the existing dragover handlers, so drop-position logic, the
+   * optimistic reorder and `dragCardId` are all left exactly as they were.
+   *
+   * The kanban owns both axes of overflow, so it is the only container to move.
+   * The rAF loop reads a ref vector: pointer events only update the vector, and
+   * the loop keeps scrolling between events — dragover goes quiet when the
+   * pointer is held still inside the hot zone, which would otherwise stall.
+   */
+  useEffect(() => {
+    if (dragCardId === null) {
+      return;
+    }
+
+    const HOT_ZONE = 60;
+    const MAX_SPEED = 18;
+
+    function speedFor(distance: number): number {
+      if (distance >= HOT_ZONE) {
+        return 0;
+      }
+      // Closer to the edge scrolls faster, clamped so it never jumps.
+      const closeness = (HOT_ZONE - Math.max(distance, 0)) / HOT_ZONE;
+      return Math.ceil(closeness * MAX_SPEED);
+    }
+
+    function step(): void {
+      const container = kanbanRef.current;
+      const { x, y } = autoScrollVectorRef.current;
+      if (!container || (x === 0 && y === 0)) {
+        autoScrollFrameRef.current = null;
+        return;
+      }
+      container.scrollLeft += x;
+      container.scrollTop += y;
+      autoScrollFrameRef.current = requestAnimationFrame(step);
+    }
+
+    function onDragOver(event: globalThis.DragEvent): void {
+      const container = kanbanRef.current;
+      if (!container) {
+        return;
+      }
+      const bounds = container.getBoundingClientRect();
+      const inside =
+        event.clientX >= bounds.left &&
+        event.clientX <= bounds.right &&
+        event.clientY >= bounds.top &&
+        event.clientY <= bounds.bottom;
+      if (!inside) {
+        autoScrollVectorRef.current = { x: 0, y: 0 };
+        return;
+      }
+      const left = speedFor(event.clientX - bounds.left);
+      const right = speedFor(bounds.right - event.clientX);
+      const top = speedFor(event.clientY - bounds.top);
+      const bottom = speedFor(bounds.bottom - event.clientY);
+      autoScrollVectorRef.current = { x: right - left, y: bottom - top };
+      if (autoScrollFrameRef.current === null) {
+        autoScrollFrameRef.current = requestAnimationFrame(step);
+      }
+    }
+
+    document.addEventListener('dragover', onDragOver);
+    // Covers drop, dragend and a cancelled drag alike, plus unmount mid-drag.
+    return () => {
+      document.removeEventListener('dragover', onDragOver);
+      autoScrollVectorRef.current = { x: 0, y: 0 };
+      if (autoScrollFrameRef.current !== null) {
+        cancelAnimationFrame(autoScrollFrameRef.current);
+        autoScrollFrameRef.current = null;
+      }
+    };
+  }, [dragCardId]);
 
   // A filtered-away branch would otherwise hide every card with no way back.
   useEffect(() => {
@@ -1384,7 +1481,7 @@ export default function App() {
         ) : null}
         {renderBoardEmptyNote()}
 
-        <div className="kanban">
+        <div className="kanban" ref={kanbanRef}>
           {STATUSES.map((status) => {
             const columnCards = cardsByStatus.get(status) ?? [];
             const isDropTarget = dragCardId !== null && dropSpot?.status === status;

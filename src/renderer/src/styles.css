@@ -710,6 +710,13 @@ code {
  * rather than letting columns squeeze below it.
  */
 .kanban {
+  /*
+   * `start` is what lets a column size to its own cards instead of every
+   * column stretching to match the tallest. The board region itself owns the
+   * vertical overflow, so tall columns are revealed by scrolling the board
+   * rather than by an inner scrollbar per column.
+   */
+  align-items: start;
   display: grid;
   flex: 1 1 auto;
   gap: 0.75rem;
@@ -735,6 +742,7 @@ code {
   background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: 16px;
+  /* Keeps a near-empty column a usable drop target without stretching it. */
   min-height: 12rem;
   padding: 0.75rem;
 }
