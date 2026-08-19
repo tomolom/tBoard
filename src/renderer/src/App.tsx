@@ -10,7 +10,7 @@ declare global {
   }
 }
 
-const STATUSES: CardStatus[] = ['backlog', 'in_progress', 'in_review', 'done'];
+const STATUSES: CardStatus[] = ['backlog', 'developing', 'untested', 'needs_fix', 'approved', 'released'];
 const PRIORITIES: CardPriority[] = ['low', 'normal', 'high', 'urgent'];
 const CARD_TYPES: CardType[] = ['task', 'bug', 'feature'];
 
@@ -199,6 +199,10 @@ export default function App() {
   const [newType, setNewType] = useState<CardType>('task');
   const [newPriority, setNewPriority] = useState<CardPriority>('normal');
   const [creating, setCreating] = useState(false);
+  const [composerOpen, setComposerOpen] = useState(false);
+  const composerRef = useRef<HTMLDivElement | null>(null);
+  const composerTitleRef = useRef<HTMLInputElement | null>(null);
+  const composerTriggerRef = useRef<HTMLButtonElement | null>(null);
 
   const [selectedCardId, setSelectedCardId] = useState<number | null>(null);
   const [detailTitle, setDetailTitle] = useState('');
@@ -597,6 +601,7 @@ export default function App() {
         module: module === '' ? null : module,
       });
       setNewTitle('');
+      setComposerOpen(false);
       await refreshCards(selectedBoardId);
     } catch (createError) {
       setCardError(errorMessage(createError));
@@ -817,6 +822,46 @@ export default function App() {
   }, [selectedCardId]);
 
   useFocusTrap(selectedCardId !== null, drawerRef, { initialFocusRef: drawerCloseRef });
+
+  // The quick-add popover: Esc and any click outside dismiss it. Focus lands on
+  // the title input and returns to the "+" button on close (via useFocusTrap).
+  useEffect(() => {
+    if (!composerOpen) {
+      return;
+    }
+    function onKeyDown(event: KeyboardEvent): void {
+      if (event.key === 'Escape') {
+        setComposerOpen(false);
+      }
+    }
+    function onPointerDown(event: MouseEvent): void {
+      const target = event.target;
+      if (!(target instanceof Node)) {
+        return;
+      }
+      // The trigger toggles on its own click; ignore it here so the two
+      // handlers do not cancel each other out.
+      if (composerRef.current?.contains(target) || composerTriggerRef.current?.contains(target)) {
+        return;
+      }
+      setComposerOpen(false);
+    }
+    document.addEventListener('keydown', onKeyDown);
+    document.addEventListener('mousedown', onPointerDown);
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+      document.removeEventListener('mousedown', onPointerDown);
+    };
+  }, [composerOpen]);
+
+  useFocusTrap(composerOpen, composerRef, { initialFocusRef: composerTitleRef });
+
+  // Adding a card with no board selected is not possible — keep them in sync.
+  useEffect(() => {
+    if (selectedBoardId === null) {
+      setComposerOpen(false);
+    }
+  }, [selectedBoardId]);
 
   // The open card may vanish on a refresh (deleted elsewhere) — drop the drawer.
   useEffect(() => {
@@ -1040,10 +1085,17 @@ export default function App() {
 
   function renderComposer() {
     return (
-      <div className="card-composer">
+      <div
+        className="card-composer"
+        ref={composerRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Add card"
+      >
         <label className="field grow">
-          <span>New Card</span>
+          <span>Title</span>
           <input
+            ref={composerTitleRef}
             value={newTitle}
             onChange={(event) => setNewTitle(event.target.value)}
             onKeyDown={(event) => {
@@ -1055,6 +1107,28 @@ export default function App() {
             placeholder="Card title"
           />
         </label>
+        <div className="composer-row">
+          <label className="field">
+            <span>Type</span>
+            <select value={newType} onChange={(event) => setNewType(event.target.value as CardType)}>
+              {CARD_TYPES.map((type) => (
+                <option key={type} value={type}>
+                  {humanizeLabel(type)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="field">
+            <span>Priority</span>
+            <select value={newPriority} onChange={(event) => setNewPriority(event.target.value as CardPriority)}>
+              {PRIORITIES.map((priority) => (
+                <option key={priority} value={priority}>
+                  {humanizeLabel(priority)}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
         <label className="field">
           <span>Branch</span>
           {renderBranchField(newBranch, (next) => {
@@ -1066,34 +1140,19 @@ export default function App() {
           <span>Module</span>
           {renderModuleField(newModule, setNewModule)}
         </label>
-        <label className="field narrow">
-          <span>Type</span>
-          <select value={newType} onChange={(event) => setNewType(event.target.value as CardType)}>
-            {CARD_TYPES.map((type) => (
-              <option key={type} value={type}>
-                {humanizeLabel(type)}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="field narrow">
-          <span>Priority</span>
-          <select value={newPriority} onChange={(event) => setNewPriority(event.target.value as CardPriority)}>
-            {PRIORITIES.map((priority) => (
-              <option key={priority} value={priority}>
-                {humanizeLabel(priority)}
-              </option>
-            ))}
-          </select>
-        </label>
-        <button
-          type="button"
-          className="primary"
-          onClick={() => void createCard()}
-          disabled={creating || newTitle.trim() === ''}
-        >
-          {creating ? 'Adding\u2026' : 'Add Card'}
-        </button>
+        <div className="composer-actions">
+          <button
+            type="button"
+            className="primary"
+            onClick={() => void createCard()}
+            disabled={creating || newTitle.trim() === ''}
+          >
+            {creating ? 'Adding\u2026' : 'Add Card'}
+          </button>
+          <button type="button" onClick={() => setComposerOpen(false)} disabled={creating}>
+            Cancel
+          </button>
+        </div>
       </div>
     );
   }
@@ -1106,7 +1165,15 @@ export default function App() {
 
   function renderBoardEmptyNote() {
     if (cards.length === 0) {
-      return <p className="empty">No cards yet. Add one above to get started.</p>;
+      return (
+        <p className="empty">
+          No cards yet.{' '}
+          <button type="button" className="link-button" onClick={() => setComposerOpen(true)}>
+            Add a card
+          </button>{' '}
+          to get started.
+        </p>
+      );
     }
     if (visibleCards.length === 0) {
       return (
@@ -1127,7 +1194,28 @@ export default function App() {
     }
     return (
       <section className="board-panel">
-        {renderComposer()}
+        <div className="board-bar">
+          <span className="board-count">
+            {visibleCards.length === cards.length
+              ? `${cards.length} ${cards.length === 1 ? 'card' : 'cards'}`
+              : `${visibleCards.length} of ${cards.length} cards`}
+          </span>
+          <div className="composer-anchor">
+            <button
+              type="button"
+              className="primary add-card"
+              ref={composerTriggerRef}
+              onClick={() => setComposerOpen((open) => !open)}
+              aria-label="Add card"
+              aria-expanded={composerOpen}
+              aria-haspopup="dialog"
+              title="Add card"
+            >
+              <span aria-hidden="true">+</span>
+            </button>
+            {composerOpen ? renderComposer() : null}
+          </div>
+        </div>
         {cardError ? <p className="error">{cardError}</p> : null}
         {branchError ? (
           <p className="branch-warning">

@@ -72,19 +72,19 @@ describe('CardService', () => {
       const boardB = seedBoard(db, { name: 'b', repoPath: '/repos/b' }).boardId;
       const service = new CardService(db);
 
-      service.createCard({ boardId: boardA, title: 'A done', status: 'done' });
+      service.createCard({ boardId: boardA, title: 'A released', status: 'released' });
       service.createCard({ boardId: boardA, title: 'A backlog', status: 'backlog' });
       service.createCard({ boardId: boardB, title: 'B card' });
 
       const aCards = service.listCards(boardA);
-      expect(aCards.map((c) => c.title)).toEqual(['A backlog', 'A done']);
+      expect(aCards.map((c) => c.title)).toEqual(['A backlog', 'A released']);
       expect(service.listCards(boardB).map((c) => c.title)).toEqual(['B card']);
     } finally {
       db.close();
     }
   });
 
-  it('updates title, priority, branch, and status; sets completed_at on done', () => {
+  it('updates title, priority, branch, and status; sets completed_at on released', () => {
     const db = freshDb();
     try {
       const { boardId } = seedBoard(db, { repoPath: '/repos/app' });
@@ -95,17 +95,17 @@ describe('CardService', () => {
         title: 'Renamed',
         priority: 'high',
         branch: 'main',
-        status: 'done',
+        status: 'released',
       });
       expect(updated.title).toBe('Renamed');
       expect(updated.priority).toBe('high');
       expect(updated.branch).toBe('main');
-      expect(updated.status).toBe('done');
+      expect(updated.status).toBe('released');
       expect(updated.completedAt).not.toBeNull();
 
-      // Moving back off 'done' clears completed_at.
-      const reopened = service.moveCard(card.id, 'in_progress');
-      expect(reopened.status).toBe('in_progress');
+      // Moving back off the terminal column clears completed_at.
+      const reopened = service.moveCard(card.id, 'developing');
+      expect(reopened.status).toBe('developing');
       expect(reopened.completedAt).toBeNull();
     } finally {
       db.close();
@@ -166,14 +166,14 @@ describe('CardService', () => {
     try {
       const { boardId } = seedBoard(db, { repoPath: '/repos/app' });
       const service = new CardService(db);
-      const inProg1 = service.createCard({ boardId, title: 'P1', status: 'in_progress' });
-      service.createCard({ boardId, title: 'P2', status: 'in_progress' });
+      const dev1 = service.createCard({ boardId, title: 'P1', status: 'developing' });
+      service.createCard({ boardId, title: 'P2', status: 'developing' });
       const backlog = service.createCard({ boardId, title: 'B1' });
 
-      const moved = service.moveCard(backlog.id, 'in_progress', inProg1.id);
-      expect(moved.status).toBe('in_progress');
-      const inProgress = service.listCards(boardId).filter((card) => card.status === 'in_progress');
-      expect(inProgress.map((card) => card.title)).toEqual(['P1', 'B1', 'P2']);
+      const moved = service.moveCard(backlog.id, 'developing', dev1.id);
+      expect(moved.status).toBe('developing');
+      const developing = service.listCards(boardId).filter((card) => card.status === 'developing');
+      expect(developing.map((card) => card.title)).toEqual(['P1', 'B1', 'P2']);
     } finally {
       db.close();
     }

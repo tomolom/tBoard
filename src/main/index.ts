@@ -24,6 +24,14 @@ function createMainWindow(): BrowserWindow {
     },
   });
 
+  if (process.env.TBOARD_RENDERER_DIAG) {
+    mainWindow.webContents.on('console-message', (_e, level, message) => {
+      console.log(`[renderer:${level}] ${message}`);
+    });
+    mainWindow.webContents.on('render-process-gone', (_e, d) => console.log('[render-process-gone]', JSON.stringify(d)));
+    mainWindow.webContents.on('did-fail-load', (_e, c, desc) => console.log('[did-fail-load]', c, desc));
+  }
+
   mainWindow.once('ready-to-show', () => mainWindow.show());
   mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   mainWindow.webContents.session.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false));

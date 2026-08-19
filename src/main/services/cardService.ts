@@ -1,7 +1,7 @@
 import type { CardDto, CardPriority, CardSource, CardStatus, CardType, CreateCardInput, UpdateCardInput } from '../../shared/api';
 import type { SqliteDatabase } from '../db/connection';
 
-const CARD_STATUSES: CardStatus[] = ['backlog', 'in_progress', 'in_review', 'done'];
+const CARD_STATUSES: CardStatus[] = ['backlog', 'developing', 'untested', 'needs_fix', 'approved', 'released'];
 const CARD_TYPES: CardType[] = ['task', 'bug', 'feature'];
 const CARD_PRIORITIES: CardPriority[] = ['low', 'normal', 'high', 'urgent'];
 const CARD_SOURCES: CardSource[] = ['manual', 'mcp'];
@@ -11,11 +11,16 @@ const POSITION_STEP = 1024;
 
 const STATUS_ORDER_CASE = `CASE status
   WHEN 'backlog' THEN 0
-  WHEN 'in_progress' THEN 1
-  WHEN 'in_review' THEN 2
-  WHEN 'done' THEN 3
-  ELSE 4
+  WHEN 'developing' THEN 1
+  WHEN 'untested' THEN 2
+  WHEN 'needs_fix' THEN 3
+  WHEN 'approved' THEN 4
+  WHEN 'released' THEN 5
+  ELSE 6
 END`;
+
+/** The terminal column — reaching it stamps completed_at. */
+const TERMINAL_STATUS: CardStatus = 'released';
 
 function isCardStatus(value: unknown): value is CardStatus {
   return typeof value === 'string' && (CARD_STATUSES as string[]).includes(value);
@@ -171,7 +176,7 @@ export class CardService {
     const branch = normalizeOptional(input.branch);
     const module = normalizeOptional(input.module);
     const position = this.nextPosition(input.boardId, status);
-    const completedAt = status === 'done' ? "datetime('now')" : 'NULL';
+    const completedAt = status === TERMINAL_STATUS ? "datetime('now')" : 'NULL';
 
     const insertResult = this.db
       .prepare(
@@ -242,7 +247,7 @@ export class CardService {
       setClauses.push('status = ?');
       params.push(input.status);
 
-      if (input.status === 'done') {
+      if (input.status === TERMINAL_STATUS) {
         setClauses.push("completed_at = COALESCE(completed_at, datetime('now'))");
       } else {
         setClauses.push('completed_at = NULL');
@@ -274,7 +279,7 @@ export class CardService {
 
     const clauses = ['status = ?', 'position = ?', "updated_at = datetime('now')"];
     const params: unknown[] = [status, position];
-    if (status === 'done') {
+    if (status === TERMINAL_STATUS) {
       clauses.push("completed_at = COALESCE(completed_at, datetime('now'))");
     } else {
       clauses.push('completed_at = NULL');

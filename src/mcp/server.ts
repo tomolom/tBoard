@@ -6,7 +6,14 @@ import type { CardPriority, CardStatus, CardType } from '../shared/api';
 import type { TBoardMcpContext } from './context';
 import { recordMcpOutcome, recordMcpReceived } from './mcpEvents';
 
-const CARD_STATUSES = ['backlog', 'in_progress', 'in_review', 'done'] as const satisfies readonly CardStatus[];
+const CARD_STATUSES = [
+  'backlog',
+  'developing',
+  'untested',
+  'needs_fix',
+  'approved',
+  'released',
+] as const satisfies readonly CardStatus[];
 const CARD_TYPES = ['task', 'bug', 'feature'] as const satisfies readonly CardType[];
 const CARD_PRIORITIES = ['low', 'normal', 'high', 'urgent'] as const satisfies readonly CardPriority[];
 
@@ -180,7 +187,7 @@ export function createTBoardMcpServer(context: TBoardMcpContext): McpServer {
     'tboard_cards_move',
     {
       title: 'Move a card',
-      description: 'Moves a card to a new status (backlog, in_progress, in_review, done).',
+      description: 'Moves a card to a new status (backlog, developing, untested, needs_fix, approved, released).',
       inputSchema: {
         id: z.number().int(),
         status: z.enum(CARD_STATUSES),

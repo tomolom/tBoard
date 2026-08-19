@@ -85,6 +85,36 @@ describe('database migrations', () => {
     }
   });
 
+  it('migration 006 maps the old 4 statuses to the six-column set', () => {
+    const upTo5 = EMBEDDED_MIGRATIONS.filter((m) => m.version <= 5);
+    const db = createDatabase(':memory:');
+    try {
+      runMigrations(db, upTo5);
+      const boardId = db.prepare("INSERT INTO boards (name, repo_path) VALUES ('a', '/r')").run().lastInsertRowid;
+      const insert = db.prepare('INSERT INTO cards (board_id, title, status) VALUES (?, ?, ?)');
+      for (const status of ['backlog', 'in_progress', 'in_review', 'done']) {
+        insert.run(boardId, `c-${status}`, status);
+      }
+
+      runMigrations(db, EMBEDDED_MIGRATIONS);
+
+      const statusOf = (title: string) =>
+        (db.prepare('SELECT status FROM cards WHERE title = ?').get(title) as { status: string }).status;
+      expect(statusOf('c-backlog')).toBe('backlog');
+      expect(statusOf('c-in_progress')).toBe('developing');
+      expect(statusOf('c-in_review')).toBe('untested');
+      expect(statusOf('c-done')).toBe('released');
+
+      // New statuses accepted, an old one now rejected, FK intact.
+      expect(() => insert.run(boardId, 'nf', 'needs_fix')).not.toThrow();
+      expect(() => insert.run(boardId, 'ap', 'approved')).not.toThrow();
+      expect(() => insert.run(boardId, 'x', 'in_progress')).toThrow();
+      expect(db.pragma('foreign_key_check') as unknown[]).toHaveLength(0);
+    } finally {
+      db.close();
+    }
+  });
+
   it('is idempotent when run repeatedly', () => {
     const db = createDatabase(':memory:');
     try {
