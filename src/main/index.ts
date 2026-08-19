@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 
 import { createDatabase, getRuntimeDatabasePath } from './db/connection';
 import { runMigrations } from './db/migrations';
+import { watchDatabase } from './dbWatcher';
 import { registerIpcHandlers } from './ipc';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -37,17 +38,33 @@ function createMainWindow(): BrowserWindow {
 }
 
 app.whenReady().then(() => {
-  const db = createDatabase(getRuntimeDatabasePath());
+  const dbPath = getRuntimeDatabasePath();
+  const db = createDatabase(dbPath);
   runMigrations(db);
   registerIpcHandlers(db);
 
-  createMainWindow();
+  const mainWindow = createMainWindow();
+
+  // Live-update the UI when the database changes underneath it — e.g. an agent
+  // writing through the standalone MCP server (a separate process). The watcher
+  // is WAL-aware; the renderer decides how to reconcile (it guards in-progress
+  // drags and unsaved edits).
+  const stopWatching = watchDatabase(dbPath, () => {
+    for (const win of BrowserWindow.getAllWindows()) {
+      if (!win.isDestroyed() && !win.webContents.isDestroyed()) {
+        win.webContents.send('db:changed');
+      }
+    }
+  });
+  app.on('will-quit', stopWatching);
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createMainWindow();
     }
   });
+
+  return mainWindow;
 });
 
 app.on('window-all-closed', () => {

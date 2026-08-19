@@ -133,4 +133,10 @@ export type TBoardApi = {
     /** Copies text to the OS clipboard via the main process. */
     writeText(text: string): Promise<ClipboardWriteResult>;
   };
+  /**
+   * Subscribes to database-change notifications (e.g. an agent writing through
+   * the standalone MCP server). Fires after a debounce whenever the underlying
+   * SQLite file or its WAL sibling changes. Returns an unsubscribe function.
+   */
+  onDbChanged(callback: () => void): () => void;
 };

@@ -391,6 +391,37 @@ export default function App() {
     };
   }, [selectedBoardId]);
 
+  /**
+   * Live-update from external database writes (e.g. an agent using the MCP
+   * server). Registered once; refs feed it the current selection and drag state
+   * so it never re-subscribes and never reads stale values.
+   *
+   * Safe because the MCP surface can only add boards and create/update/move
+   * cards — it cannot remove a board or delete a card, so a live refetch can
+   * never pull the selected board or an open card out from under the user. The
+   * drawer's edit buffer is separate `detail*` state, so refreshing `cards`
+   * leaves unsaved edits intact. An in-progress drag is skipped — its own drop
+   * refetches at the end.
+   */
+  const selectedBoardIdRef = useRef(selectedBoardId);
+  selectedBoardIdRef.current = selectedBoardId;
+  const dragCardIdRef = useRef(dragCardId);
+  dragCardIdRef.current = dragCardId;
+
+  useEffect(() => {
+    const unsubscribe = window.tBoard.onDbChanged(() => {
+      if (dragCardIdRef.current !== null) {
+        return;
+      }
+      void window.tBoard.boards.list().then(setBoards).catch(() => undefined);
+      const boardId = selectedBoardIdRef.current;
+      if (boardId !== null) {
+        void window.tBoard.cards.list(boardId).then(setCards).catch(() => undefined);
+      }
+    });
+    return unsubscribe;
+  }, []);
+
   // A filtered-away branch would otherwise hide every card with no way back.
   useEffect(() => {
     if (branchFilter === FILTER_ALL || branchFilter === FILTER_NONE) {

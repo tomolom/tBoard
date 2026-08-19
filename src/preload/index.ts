@@ -27,6 +27,15 @@ const api: TBoardApi = {
   clipboard: {
     writeText: (text: string) => ipcRenderer.invoke('clipboard:writeText', text),
   },
+  onDbChanged: (callback: () => void) => {
+    // Wrap so the raw IpcRendererEvent is never handed to the renderer, and
+    // return an unsubscribe that removes exactly this listener.
+    const listener = (): void => callback();
+    ipcRenderer.on('db:changed', listener);
+    return () => {
+      ipcRenderer.removeListener('db:changed', listener);
+    };
+  },
 };
 
 contextBridge.exposeInMainWorld('tBoard', api);
