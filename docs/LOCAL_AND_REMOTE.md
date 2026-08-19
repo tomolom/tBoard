@@ -38,6 +38,8 @@ npm run server:push -- https://your-domain --replace
 
 > The sync is **one-way (local → remote)**. Once you switch your agents/app to remote, the remote becomes your source of truth and you stop pushing local → remote.
 
+> **Attachments are not synced.** `server:push` copies boards and cards only. File attachments live next to each store's database (`<dir(TBOARD_DB_PATH)>/attachments/`, i.e. on the Docker `/data` volume in prod) and stay with the store where they were uploaded. Upload files directly on whichever board is your source of truth.
+
 ## Pointing AI agents (MCP) at the remote board
 
 By default the MCP server opens the local DB. To make a **local** agent drive the **remote** board over HTTPS, set two environment variables on the MCP server:
