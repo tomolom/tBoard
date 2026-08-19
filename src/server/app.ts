@@ -1,9 +1,15 @@
 import { randomBytes } from 'node:crypto';
 
+import path from 'node:path';
+
 import cookie from '@fastify/cookie';
+import fastifyMultipart from '@fastify/multipart';
 import fastifyStatic from '@fastify/static';
 import rateLimit from '@fastify/rate-limit';
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
+
+import { AttachmentService, AttachmentTooLargeError, MAX_ATTACHMENT_BYTES } from '../main/services/attachmentService';
+import { contentDispositionAttachment } from '../main/services/attachmentStore';
 
 import type { SqliteDatabase } from '../main/db/connection';
 import { BoardService } from '../main/services/boardService';
@@ -25,6 +31,8 @@ export type BuildServerOptions = {
   config: ServerConfig;
   /** Absolute path to the built renderer directory (index.html + assets). */
   staticRoot?: string;
+  /** Directory where attachment files are stored (off the static tree). */
+  attachmentsDir: string;
   /**
    * Registers a callback fired whenever the DB changes, used to push SSE events.
    * Returns an unsubscribe. Injected so tests can drive it without a real watcher.
@@ -51,9 +59,37 @@ export async function buildServer(options: BuildServerOptions): Promise<FastifyI
   const boards = new BoardService(db);
   const cards = new CardService(db);
   const settings = new SettingsService(db);
+  const attachments = new AttachmentService(db, options.attachmentsDir);
+
+  // Security invariant (oracle-reviewed): the attachments directory must NEVER
+  // sit inside the static root, or files could be served unauthenticated and
+  // inline. Fail boot if a future refactor ever violates this.
+  if (options.staticRoot) {
+    const staticRootResolved = path.resolve(options.staticRoot);
+    const attachmentsResolved = path.resolve(options.attachmentsDir);
+    if (
+      attachmentsResolved === staticRootResolved ||
+      attachmentsResolved.startsWith(staticRootResolved + path.sep) ||
+      staticRootResolved.startsWith(attachmentsResolved + path.sep)
+    ) {
+      throw new Error('Attachments directory must not be inside the static root (it would be served unauthenticated).');
+    }
+  }
+  // Clean up any temp files left by a crashed upload.
+  void attachments.cleanupTempFiles();
 
   await app.register(cookie);
   await app.register(rateLimit, { global: false });
+  // Multipart is used only by the upload route; per-file/route limits are
+  // enforced there and in the service. The global JSON body limit stays small.
+  await app.register(fastifyMultipart, {
+    limits: {
+      fileSize: MAX_ATTACHMENT_BYTES,
+      files: 5,
+      fields: 5,
+      parts: 20,
+    },
+  });
 
   const cookieBase = {
     path: '/',
@@ -80,22 +116,26 @@ export async function buildServer(options: BuildServerOptions): Promise<FastifyI
     reply.header('X-Robots-Tag', 'noindex, nofollow');
     reply.header('Permissions-Policy', 'geolocation=(), microphone=(), camera=()');
     reply.header('Cross-Origin-Opener-Policy', 'same-origin');
-    reply.header(
-      'Content-Security-Policy',
-      [
-        "default-src 'self'",
-        "script-src 'self'",
-        // React sets inline styles; allow them but never inline scripts.
-        "style-src 'self' 'unsafe-inline'",
-        "img-src 'self' data: blob:",
-        "font-src 'self'",
-        "connect-src 'self'",
-        "object-src 'none'",
-        "base-uri 'none'",
-        "frame-ancestors 'none'",
-        "form-action 'self'",
-      ].join('; '),
-    );
+    // A route may set a stricter CSP (e.g. the attachment download's
+    // "default-src 'none'; sandbox"); don't clobber it with the app default.
+    if (!reply.getHeader('Content-Security-Policy')) {
+      reply.header(
+        'Content-Security-Policy',
+        [
+          "default-src 'self'",
+          "script-src 'self'",
+          // React sets inline styles; allow them but never inline scripts.
+          "style-src 'self' 'unsafe-inline'",
+          "img-src 'self' data: blob:",
+          "font-src 'self'",
+          "connect-src 'self'",
+          "object-src 'none'",
+          "base-uri 'none'",
+          "frame-ancestors 'none'",
+          "form-action 'self'",
+        ].join('; '),
+      );
+    }
     if (request.url.startsWith('/api/')) {
       reply.header('Cache-Control', 'no-store');
     } else if (request.url.startsWith('/assets/')) {
@@ -292,6 +332,59 @@ export async function buildServer(options: BuildServerOptions): Promise<FastifyI
     if (!requireAuth(request, reply)) return;
     const body = (request.body ?? {}) as { boardId?: unknown };
     settings.setLastBoardId(typeof body.boardId === 'number' ? body.boardId : null);
+    return reply.send({ ok: true });
+  });
+
+  // --- Attachments ---------------------------------------------------------
+  app.get('/api/cards/:id/attachments', async (request, reply) => {
+    if (!requireAuth(request, reply)) return;
+    return reply.send(attachments.list(Number((request.params as { id: string }).id)));
+  });
+
+  app.post('/api/cards/:id/attachments', async (request, reply) => {
+    if (!requireAuth(request, reply)) return;
+    const cardId = Number((request.params as { id: string }).id);
+    let stored;
+    try {
+      const file = await request.file();
+      if (!file) {
+        return reply.code(400).send({ error: 'No file provided.' });
+      }
+      stored = await attachments.createFromStream(cardId, file.filename, file.mimetype, file.file, 'user');
+      // @fastify/multipart flags truncation when fileSize is exceeded.
+      if (file.file.truncated) {
+        await attachments.remove(stored.id);
+        return reply.code(413).send({ error: 'Attachment exceeds the size limit.' });
+      }
+    } catch (error) {
+      if (error instanceof AttachmentTooLargeError) {
+        return reply.code(413).send({ error: error.message });
+      }
+      return reply.code(400).send({ error: error instanceof Error ? error.message : 'Upload failed' });
+    }
+    return reply.send(stored);
+  });
+
+  app.get('/api/attachments/:id', async (request, reply) => {
+    if (!requireAuth(request, reply)) return;
+    const row = attachments.getRow(Number((request.params as { id: string }).id));
+    if (!row) {
+      return reply.code(404).send({ error: 'Not found' });
+    }
+    // Force download; never render inline. Separate strict CSP + octet-stream +
+    // nosniff + safe Content-Disposition (both ascii and RFC 5987 forms).
+    reply.header('Content-Type', 'application/octet-stream');
+    reply.header('Content-Disposition', contentDispositionAttachment(row.original_name));
+    reply.header('Content-Security-Policy', "default-src 'none'; sandbox");
+    reply.header('X-Content-Type-Options', 'nosniff');
+    reply.header('Cache-Control', 'private, no-store');
+    const { createReadStream } = await import('node:fs');
+    return reply.send(createReadStream(attachments.resolveFilePath(row.stored_name)));
+  });
+
+  app.delete('/api/attachments/:id', async (request, reply) => {
+    if (!requireAuth(request, reply)) return;
+    await attachments.remove(Number((request.params as { id: string }).id));
     return reply.send({ ok: true });
   });
 

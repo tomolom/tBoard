@@ -36,5 +36,10 @@ export const EMBEDDED_MIGRATIONS = [
     "version": 7,
     "name": "007_sessions.sql",
     "sql": "-- Migration 007: server-side session store for the optional web mode.\n--\n-- Only the hosted web server (src/server/) uses this; the desktop app simply\n-- ignores it. Sessions are server-side (not stateless tokens) so they can be\n-- revoked and expired. The cookie carries a raw random id; only its SHA-256\n-- hash is stored here, so a DB leak does not hand out live session cookies.\n\nCREATE TABLE IF NOT EXISTS sessions (\n  id_hash TEXT PRIMARY KEY,\n  created_at TEXT NOT NULL DEFAULT (datetime('now')),\n  last_seen_at TEXT NOT NULL DEFAULT (datetime('now')),\n  expires_at TEXT NOT NULL\n);\n\nCREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at);\n"
+  },
+  {
+    "version": 8,
+    "name": "008_attachments.sql",
+    "sql": "-- Migration 008: file attachments on cards.\n--\n-- Files are stored on disk under <dir(TBOARD_DB_PATH)>/attachments/ using a\n-- RANDOM stored_name (never the user-supplied name), so the DB row is the only\n-- link between a display name and the bytes on disk. Deleting a card cascades\n-- its attachment rows; the files are unlinked by application code.\n\nCREATE TABLE IF NOT EXISTS attachments (\n  id INTEGER PRIMARY KEY AUTOINCREMENT,\n  card_id INTEGER NOT NULL REFERENCES cards(id) ON DELETE CASCADE,\n  -- Display name only. NEVER used to build a filesystem path.\n  original_name TEXT NOT NULL,\n  -- Actual on-disk filename: 64 hex chars from crypto.randomBytes(32).\n  stored_name TEXT NOT NULL UNIQUE,\n  mime_type TEXT NOT NULL DEFAULT 'application/octet-stream',\n  size_bytes INTEGER NOT NULL DEFAULT 0,\n  created_at TEXT NOT NULL DEFAULT (datetime('now')),\n  created_by TEXT NOT NULL DEFAULT 'user'\n);\n\nCREATE INDEX IF NOT EXISTS idx_attachments_card ON attachments(card_id);\n"
   }
 ] as const;

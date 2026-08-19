@@ -1105,6 +1105,76 @@ code {
   font-weight: 700;
 }
 
+/*
+ * Attachments. Rows are a name/size pair on the left and link actions on the
+ * right; the name truncates so a long filename cannot widen the drawer.
+ */
+.attachment-list {
+  display: grid;
+  gap: 0.4rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.attachment-row {
+  align-items: center;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  display: flex;
+  gap: 0.75rem;
+  justify-content: space-between;
+  padding: 0.55rem 0.7rem;
+}
+
+.attachment-info {
+  display: grid;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.attachment-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attachment-size {
+  color: var(--text-dim);
+  font-size: 0.78rem;
+}
+
+.attachment-actions {
+  display: flex;
+  flex: none;
+  gap: 0.75rem;
+}
+
+.danger-link {
+  color: var(--danger-text);
+}
+
+.danger-link:hover:not(:disabled) {
+  color: var(--deleted);
+}
+
+.attachment-empty {
+  font-size: 0.85rem;
+  padding: 0.75rem;
+}
+
+/* Hidden file input — kept focusable-free but present for the click proxy. */
+.visually-hidden {
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  height: 1px;
+  overflow: hidden;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
+}
+
 .drawer-meta {
   background: var(--surface-2);
   border: 1px solid var(--border);

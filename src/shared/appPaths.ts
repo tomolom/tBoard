@@ -54,3 +54,12 @@ export function resolveDatabasePath(): string {
   }
   return path.join(resolveUserDataDir(), 'tboard.sqlite');
 }
+
+/**
+ * Directory where card attachment files are stored, alongside the database so
+ * it persists on the same volume (the Docker /data mount in prod). Derived from
+ * the DB path's directory, so TBOARD_DB_PATH moves both together.
+ */
+export function resolveAttachmentsDir(): string {
+  return path.join(path.dirname(resolveDatabasePath()), 'attachments');
+}

@@ -95,6 +95,25 @@ export type ClipboardWriteResult = {
   error: string | null;
 };
 
+/** Metadata for a file attached to a card. The bytes live on disk off-DB. */
+export type AttachmentDto = {
+  id: number;
+  cardId: number;
+  /** User-facing filename (display only; never a filesystem path). */
+  fileName: string;
+  mimeType: string;
+  sizeBytes: number;
+  createdAt: string;
+  createdBy: string;
+};
+
+/** A file to upload, as read from an <input type="file"> in the renderer. */
+export type UploadFile = {
+  name: string;
+  type: string;
+  data: Uint8Array;
+};
+
 /**
  * The API surface exposed to the renderer via the preload bridge
  * (window.tBoard). The renderer never touches fs/db/git directly.
@@ -132,6 +151,16 @@ export type TBoardApi = {
   clipboard: {
     /** Copies text to the OS clipboard via the main process. */
     writeText(text: string): Promise<ClipboardWriteResult>;
+  };
+  attachments: {
+    /** Lists a card's attachments (metadata only). */
+    list(cardId: number): Promise<AttachmentDto[]>;
+    /** Uploads files to a card. The renderer reads File bytes first. */
+    upload(cardId: number, files: UploadFile[]): Promise<AttachmentDto[]>;
+    /** Deletes an attachment (row + file). */
+    remove(id: number): Promise<void>;
+    /** Downloads (web) or opens with the OS (desktop) the attachment. */
+    open(id: number): Promise<void>;
   };
   /**
    * Local↔remote connection control (desktop app only; absent in web mode).

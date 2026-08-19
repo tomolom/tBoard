@@ -1,7 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { DragEvent } from 'react';
 
-import type { BoardDto, BranchDto, CardDto, CardPriority, CardStatus, CardType, TBoardApi } from '../../shared/api';
+import type {
+  AttachmentDto,
+  BoardDto,
+  BranchDto,
+  CardDto,
+  CardPriority,
+  CardStatus,
+  CardType,
+  TBoardApi,
+  UploadFile,
+} from '../../shared/api';
 import { useFocusTrap } from './useFocusTrap';
 
 declare global {
@@ -84,6 +94,27 @@ function formatTimestamp(value: string | null): string {
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+/**
+ * Human-readable file size. Uses 1024-based units, one decimal place above KB,
+ * and no decimal for whole bytes ("940 B", "1.4 MB").
+ */
+function formatBytes(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes < 0) {
+    return '\u2014';
+  }
+  if (bytes < 1024) {
+    return `${bytes} B`;
+  }
+  const units = ['KB', 'MB', 'GB'];
+  let value = bytes / 1024;
+  let unit = 0;
+  while (value >= 1024 && unit < units.length - 1) {
+    value /= 1024;
+    unit += 1;
+  }
+  return `${value.toFixed(1)} ${units[unit]}`;
 }
 
 function BranchBadge({ branch }: { branch: string }) {
@@ -244,6 +275,10 @@ export default function App() {
   const [detailType, setDetailType] = useState<CardType>('task');
   const [detailBusy, setDetailBusy] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
+  const [attachments, setAttachments] = useState<AttachmentDto[]>([]);
+  const [attachmentBusy, setAttachmentBusy] = useState(false);
+  const [attachmentError, setAttachmentError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [deleteArmed, setDeleteArmed] = useState(false);
 
   const drawerRef = useRef<HTMLElement | null>(null);
@@ -967,6 +1002,96 @@ export default function App() {
       document.body.style.overflow = previousOverflow;
     };
   }, [selectedCardId]);
+
+  /*
+   * Loads a card's attachments when the drawer opens, and clears them when it
+   * closes so a reopened drawer never flashes the previous card's files. The
+   * cancel guard covers opening a second card before the first list lands.
+   */
+  useEffect(() => {
+    setAttachments([]);
+    setAttachmentError(null);
+    if (selectedCardId === null) {
+      return;
+    }
+    let cancelled = false;
+    const cardId = selectedCardId;
+    void window.tBoard.attachments
+      .list(cardId)
+      .then((list) => {
+        if (!cancelled) {
+          setAttachments(list);
+        }
+      })
+      .catch((listError: unknown) => {
+        if (!cancelled) {
+          setAttachmentError(errorMessage(listError));
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedCardId]);
+
+  async function refreshAttachments(cardId: number): Promise<void> {
+    setAttachments(await window.tBoard.attachments.list(cardId));
+  }
+
+  /**
+   * Reads each picked File into the bytes the API expects, uploads, then
+   * refreshes. The input is cleared afterwards so picking the same file again
+   * still fires a change event.
+   */
+  async function uploadAttachments(fileList: FileList | null): Promise<void> {
+    const cardId = selectedCardId;
+    if (cardId === null || !fileList || fileList.length === 0) {
+      return;
+    }
+    setAttachmentBusy(true);
+    setAttachmentError(null);
+    try {
+      const uploads: UploadFile[] = [];
+      for (const file of Array.from(fileList)) {
+        const data = new Uint8Array(await file.arrayBuffer());
+        uploads.push({ name: file.name, type: file.type, data });
+      }
+      await window.tBoard.attachments.upload(cardId, uploads);
+      await refreshAttachments(cardId);
+    } catch (uploadError) {
+      setAttachmentError(errorMessage(uploadError));
+    } finally {
+      setAttachmentBusy(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  }
+
+  async function removeAttachment(attachmentId: number): Promise<void> {
+    const cardId = selectedCardId;
+    if (cardId === null) {
+      return;
+    }
+    setAttachmentBusy(true);
+    setAttachmentError(null);
+    try {
+      await window.tBoard.attachments.remove(attachmentId);
+      await refreshAttachments(cardId);
+    } catch (removeError) {
+      setAttachmentError(errorMessage(removeError));
+    } finally {
+      setAttachmentBusy(false);
+    }
+  }
+
+  async function openAttachment(attachmentId: number): Promise<void> {
+    setAttachmentError(null);
+    try {
+      await window.tBoard.attachments.open(attachmentId);
+    } catch (openError) {
+      setAttachmentError(errorMessage(openError));
+    }
+  }
 
   useFocusTrap(selectedCardId !== null, drawerRef, { initialFocusRef: drawerCloseRef });
 
@@ -1736,6 +1861,58 @@ export default function App() {
                   </div>
                 ) : null}
               </dl>
+            </div>
+
+            <div className="drawer-section">
+              <h3>Attachments</h3>
+              {attachments.length > 0 ? (
+                <ul className="attachment-list">
+                  {attachments.map((attachment) => (
+                    <li className="attachment-row" key={attachment.id}>
+                      <div className="attachment-info">
+                        <span className="attachment-name" title={attachment.fileName}>
+                          {attachment.fileName}
+                        </span>
+                        <span className="attachment-size">{formatBytes(attachment.sizeBytes)}</span>
+                      </div>
+                      <div className="attachment-actions">
+                        <button
+                          type="button"
+                          className="link-button"
+                          onClick={() => void openAttachment(attachment.id)}
+                        >
+                          {isWebMode() ? 'Download' : 'Open'}
+                        </button>
+                        <button
+                          type="button"
+                          className="link-button danger-link"
+                          onClick={() => void removeAttachment(attachment.id)}
+                          disabled={attachmentBusy}
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="empty attachment-empty">No attachments yet.</p>
+              )}
+
+              {attachmentError ? <p className="error">{attachmentError}</p> : null}
+
+              <div className="drawer-actions">
+                <button type="button" onClick={() => fileInputRef.current?.click()} disabled={attachmentBusy}>
+                  {attachmentBusy ? 'Working\u2026' : 'Attach Files'}
+                </button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  multiple
+                  className="visually-hidden"
+                  onChange={(event) => void uploadAttachments(event.target.files)}
+                />
+              </div>
             </div>
 
             <div className="drawer-section">

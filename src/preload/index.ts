@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron';
 
-import type { AddBoardInput, CardStatus, CreateCardInput, TBoardApi, UpdateCardInput } from '../shared/api';
+import type { AddBoardInput, CardStatus, CreateCardInput, TBoardApi, UpdateCardInput, UploadFile } from '../shared/api';
 
 const api: TBoardApi = {
   boards: {
@@ -26,6 +26,12 @@ const api: TBoardApi = {
   },
   clipboard: {
     writeText: (text: string) => ipcRenderer.invoke('clipboard:writeText', text),
+  },
+  attachments: {
+    list: (cardId: number) => ipcRenderer.invoke('attachments:list', cardId),
+    upload: (cardId: number, files: UploadFile[]) => ipcRenderer.invoke('attachments:upload', cardId, files),
+    remove: (id: number) => ipcRenderer.invoke('attachments:remove', id),
+    open: (id: number) => ipcRenderer.invoke('attachments:open', id),
   },
   connection: {
     getRemoteUrl: () => ipcRenderer.invoke('settings:getRemoteUrl'),

@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { createDatabase, getRuntimeDatabasePath } from '../main/db/connection';
 import { runMigrations } from '../main/db/migrations';
 import { watchDatabase } from '../main/dbWatcher';
+import { resolveAttachmentsDir } from '../shared/appPaths';
 import { buildServer } from './app';
 import { hashPassword } from './auth';
 import { loadServerConfig } from './config';
@@ -59,6 +60,7 @@ async function main(): Promise<void> {
     db,
     config,
     staticRoot,
+    attachmentsDir: resolveAttachmentsDir(),
     onDbChange: (cb) => watchDatabase(dbPath, cb),
   });
 

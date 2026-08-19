@@ -1,6 +1,7 @@
 import type {
   AddBoardInput,
   AddBoardResult,
+  AttachmentDto,
   BoardDto,
   BranchListResult,
   CardDto,
@@ -9,6 +10,7 @@ import type {
   CreateCardInput,
   TBoardApi,
   UpdateCardInput,
+  UploadFile,
 } from '../../shared/api';
 
 /**
@@ -126,6 +128,52 @@ export function createRemoteApi(baseUrl = '', onUnauthorized?: () => void): Remo
         } catch (error) {
           return { copied: false, error: error instanceof Error ? error.message : String(error) };
         }
+      },
+    },
+    attachments: {
+      list: (cardId: number) => request<AttachmentDto[]>('GET', `/api/cards/${cardId}/attachments`),
+      upload: async (cardId: number, files: UploadFile[]): Promise<AttachmentDto[]> => {
+        const created: AttachmentDto[] = [];
+        // One request per file (the server accepts a single file per request).
+        for (const file of files) {
+          const form = new FormData();
+          form.append('file', new Blob([file.data as BlobPart], { type: file.type || 'application/octet-stream' }), file.name);
+          const token = readCookie(CSRF_COOKIE);
+          const response = await fetch(`${baseUrl}/api/cards/${cardId}/attachments`, {
+            method: 'POST',
+            headers: token ? { [CSRF_HEADER]: token } : {},
+            credentials: 'same-origin',
+            body: form,
+          });
+          if (response.status === 401) {
+            onUnauthorized?.();
+            throw new UnauthorizedError();
+          }
+          if (!response.ok) {
+            let message = `Upload failed (${response.status})`;
+            try {
+              const data = (await response.json()) as { error?: string };
+              if (data.error) message = data.error;
+            } catch {
+              // keep default
+            }
+            throw new Error(message);
+          }
+          created.push((await response.json()) as AttachmentDto);
+        }
+        return created;
+      },
+      remove: async (id: number) => {
+        await request<{ ok: true }>('DELETE', `/api/attachments/${id}`);
+      },
+      open: async (id: number): Promise<void> => {
+        // Same-origin authed GET; the browser downloads it (forced by headers).
+        const anchor = document.createElement('a');
+        anchor.href = `${baseUrl}/api/attachments/${id}`;
+        anchor.rel = 'noopener';
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
       },
     },
     onDbChanged: (callback: () => void) => {

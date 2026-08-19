@@ -1,4 +1,4 @@
-import { BrowserWindow, clipboard, dialog, ipcMain } from 'electron';
+import { BrowserWindow, clipboard, dialog, ipcMain, shell } from 'electron';
 
 import type {
   AddBoardInput,
@@ -6,8 +6,11 @@ import type {
   ClipboardWriteResult,
   CreateCardInput,
   UpdateCardInput,
+  UploadFile,
 } from '../shared/api';
 import type { SqliteDatabase } from './db/connection';
+import { resolveAttachmentsDir } from '../shared/appPaths';
+import { AttachmentService } from './services/attachmentService';
 import { BoardService } from './services/boardService';
 import { CardService } from './services/cardService';
 import { listBranches } from './services/gitBranches';
@@ -23,6 +26,8 @@ export function registerIpcHandlers(db: SqliteDatabase, options: IpcOptions = {}
   const settings = new SettingsService(db);
   const boards = new BoardService(db);
   const cards = new CardService(db);
+  const attachments = new AttachmentService(db, resolveAttachmentsDir());
+  void attachments.cleanupTempFiles();
 
   ipcMain.handle('boards:list', () => boards.listBoards());
   ipcMain.handle('boards:add', (_event, input: AddBoardInput) => boards.addBoard(input));
@@ -74,6 +79,25 @@ export function registerIpcHandlers(db: SqliteDatabase, options: IpcOptions = {}
     } catch (error) {
       return { ok: false, error: error instanceof Error ? error.message : String(error) };
     }
+  });
+
+  ipcMain.handle('attachments:list', (_event, cardId: number) => attachments.list(cardId));
+  ipcMain.handle('attachments:upload', async (_event, cardId: number, files: UploadFile[]) => {
+    const created = [];
+    for (const file of files) {
+      created.push(await attachments.createFromBuffer(cardId, file.name, file.type, Buffer.from(file.data), 'user'));
+    }
+    return created;
+  });
+  ipcMain.handle('attachments:remove', (_event, id: number) => attachments.remove(id));
+  ipcMain.handle('attachments:open', async (_event, id: number) => {
+    const row = attachments.getRow(id);
+    if (!row) {
+      return;
+    }
+    // Open only the containment-checked stored path; the original name never
+    // influences the filesystem path.
+    await shell.openPath(attachments.resolveFilePath(row.stored_name));
   });
 
   ipcMain.handle('clipboard:writeText', (_event, text: unknown): ClipboardWriteResult => {

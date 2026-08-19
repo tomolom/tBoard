@@ -1,3 +1,7 @@
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 
@@ -26,7 +30,8 @@ describe('web server', () => {
   beforeEach(async () => {
     db = createDatabase(':memory:');
     runMigrations(db);
-    app = await buildServer({ db, config });
+    const attachmentsDir = mkdtempSync(path.join(tmpdir(), 'tboard-att-'));
+    app = await buildServer({ db, config, attachmentsDir });
     await app.ready();
   });
 
@@ -145,5 +150,71 @@ describe('web server', () => {
     expect(res.headers['x-robots-tag']).toContain('noindex');
     expect(res.headers['content-security-policy']).toContain("frame-ancestors 'none'");
     expect(res.headers['cache-control']).toBe('no-store');
+  });
+
+  function multipart(fileName: string, content: string): { body: Buffer; contentType: string } {
+    const boundary = '----tboardtest' + Math.random().toString(16).slice(2);
+    const body = Buffer.from(
+      `--${boundary}\r\n` +
+        `Content-Disposition: form-data; name="file"; filename="${fileName}"\r\n` +
+        `Content-Type: text/plain\r\n\r\n` +
+        `${content}\r\n` +
+        `--${boundary}--\r\n`,
+    );
+    return { body, contentType: `multipart/form-data; boundary=${boundary}` };
+  }
+
+  it('uploads, lists, downloads (forced-download), and deletes an attachment', async () => {
+    const { cookies, csrf } = await login();
+    const headers = { origin: ORIGIN, cookie: cookies, 'x-csrf-token': csrf };
+    const add = await app.inject({ method: 'POST', url: '/api/boards', headers, payload: { repoPath: '/repos/app' } });
+    const boardId = (add.json().board as { id: number }).id;
+    const created = await app.inject({ method: 'POST', url: '/api/cards', headers, payload: { boardId, title: 'C' } });
+    const cardId = (created.json() as { id: number }).id;
+
+    const { body, contentType } = multipart('résumé.txt', 'hello attachment');
+    const up = await app.inject({
+      method: 'POST',
+      url: `/api/cards/${cardId}/attachments`,
+      headers: { ...headers, 'content-type': contentType },
+      payload: body,
+    });
+    expect(up.statusCode).toBe(200);
+    const att = up.json() as { id: number; fileName: string; sizeBytes: number };
+    expect(att.fileName).toBe('résumé.txt');
+    expect(att.sizeBytes).toBe(16);
+
+    const list = await app.inject({ method: 'GET', url: `/api/cards/${cardId}/attachments`, headers: { cookie: cookies } });
+    expect((list.json() as unknown[]).length).toBe(1);
+
+    const dl = await app.inject({ method: 'GET', url: `/api/attachments/${att.id}`, headers: { cookie: cookies } });
+    expect(dl.statusCode).toBe(200);
+    expect(dl.headers['content-type']).toBe('application/octet-stream');
+    expect(dl.headers['content-disposition']).toContain("filename*=UTF-8''");
+    expect(dl.headers['content-security-policy']).toBe("default-src 'none'; sandbox");
+    expect(dl.headers['x-content-type-options']).toBe('nosniff');
+    expect(dl.body).toBe('hello attachment');
+
+    const del = await app.inject({ method: 'DELETE', url: `/api/attachments/${att.id}`, headers });
+    expect(del.statusCode).toBe(200);
+    const after = await app.inject({ method: 'GET', url: `/api/cards/${cardId}/attachments`, headers: { cookie: cookies } });
+    expect((after.json() as unknown[]).length).toBe(0);
+  });
+
+  it('requires auth to download an attachment', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/attachments/1' });
+    expect(res.statusCode).toBe(401);
+  });
+
+  it('requires Origin + CSRF to upload', async () => {
+    const { cookies } = await login();
+    const { body, contentType } = multipart('x.txt', 'x');
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/cards/1/attachments',
+      headers: { cookie: cookies, 'content-type': contentType }, // no origin/csrf
+      payload: body,
+    });
+    expect(res.statusCode).toBe(403);
   });
 });
