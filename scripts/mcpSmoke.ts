@@ -96,14 +96,17 @@ async function main(): Promise<void> {
     const created = parseToolJson(
       await client.callTool({
         name: 'tboard_cards_create',
-        arguments: { boardId, title: 'MCP smoke card', branch: 'main' },
+        // status exercises the six-column enum, so a stale/regressed status set
+        // fails the smoke (this drift previously went undetected).
+        arguments: { boardId, title: 'MCP smoke card', branch: 'main', status: 'developing' },
       }),
-    ) as { id: number; title: string; boardId: number; branch: string | null };
+    ) as { id: number; title: string; boardId: number; branch: string | null; status: string };
     assert(typeof created.id === 'number' && created.id > 0, 'created card missing id');
     assert(created.title === 'MCP smoke card', 'created card title mismatch');
     assert(created.boardId === boardId, 'created card not linked to the board');
     assert(created.branch === 'main', 'created card branch mismatch');
-    console.log(`[smoke] created card #${created.id} on board #${boardId}`);
+    assert(created.status === 'developing', `created card status mismatch (six-column enum): ${created.status}`);
+    console.log(`[smoke] created card #${created.id} on board #${boardId} (status developing)`);
 
     const listed = parseToolJson(
       await client.callTool({ name: 'tboard_cards_list', arguments: { boardId } }),
