@@ -4,6 +4,9 @@
 
 export type CardStatus = 'backlog' | 'in_progress' | 'in_review' | 'done';
 
+/** Lightweight card categorization. */
+export type CardType = 'task' | 'bug' | 'feature';
+
 export type CardPriority = 'low' | 'normal' | 'high' | 'urgent';
 
 /** How a card entered the board. */
@@ -48,6 +51,7 @@ export type CardDto = {
   boardId: number;
   title: string;
   description: string | null;
+  type: CardType;
   status: CardStatus;
   priority: CardPriority;
   /** Git branch this card is associated with, or null. */
@@ -67,6 +71,7 @@ export type CreateCardInput = {
   boardId: number;
   title: string;
   description?: string | null;
+  type?: CardType;
   status?: CardStatus;
   priority?: CardPriority;
   branch?: string | null;
@@ -78,6 +83,7 @@ export type CreateCardInput = {
 export type UpdateCardInput = {
   title?: string;
   description?: string | null;
+  type?: CardType;
   status?: CardStatus;
   priority?: CardPriority;
   branch?: string | null;

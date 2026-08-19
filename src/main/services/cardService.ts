@@ -1,7 +1,8 @@
-import type { CardDto, CardPriority, CardSource, CardStatus, CreateCardInput, UpdateCardInput } from '../../shared/api';
+import type { CardDto, CardPriority, CardSource, CardStatus, CardType, CreateCardInput, UpdateCardInput } from '../../shared/api';
 import type { SqliteDatabase } from '../db/connection';
 
 const CARD_STATUSES: CardStatus[] = ['backlog', 'in_progress', 'in_review', 'done'];
+const CARD_TYPES: CardType[] = ['task', 'bug', 'feature'];
 const CARD_PRIORITIES: CardPriority[] = ['low', 'normal', 'high', 'urgent'];
 const CARD_SOURCES: CardSource[] = ['manual', 'mcp'];
 
@@ -20,6 +21,10 @@ function isCardStatus(value: unknown): value is CardStatus {
   return typeof value === 'string' && (CARD_STATUSES as string[]).includes(value);
 }
 
+function isCardType(value: unknown): value is CardType {
+  return typeof value === 'string' && (CARD_TYPES as string[]).includes(value);
+}
+
 function isCardPriority(value: unknown): value is CardPriority {
   return typeof value === 'string' && (CARD_PRIORITIES as string[]).includes(value);
 }
@@ -33,6 +38,7 @@ type CardRow = {
   board_id: number;
   title: string;
   description: string | null;
+  type: string;
   status: string;
   priority: string;
   branch: string | null;
@@ -51,6 +57,7 @@ function mapCardRow(row: CardRow): CardDto {
     boardId: row.board_id,
     title: row.title,
     description: row.description,
+    type: row.type as CardType,
     status: row.status as CardStatus,
     priority: row.priority as CardPriority,
     branch: row.branch,
@@ -65,7 +72,7 @@ function mapCardRow(row: CardRow): CardDto {
 }
 
 const CARD_SELECT = `
-  SELECT id, board_id, title, description, status, priority, branch, module, position,
+  SELECT id, board_id, title, description, type, status, priority, branch, module, position,
          source, created_by, created_at, updated_at, completed_at
   FROM cards
 `;
@@ -146,6 +153,11 @@ export class CardService {
       throw new Error(`Invalid card status: ${String(status)}`);
     }
 
+    const type = input.type ?? 'task';
+    if (!isCardType(type)) {
+      throw new Error(`Invalid card type: ${String(type)}`);
+    }
+
     const priority = input.priority ?? 'normal';
     if (!isCardPriority(priority)) {
       throw new Error(`Invalid card priority: ${String(priority)}`);
@@ -163,10 +175,10 @@ export class CardService {
 
     const insertResult = this.db
       .prepare(
-        `INSERT INTO cards (board_id, title, description, status, priority, branch, module, position, source, created_by, completed_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ${completedAt})`,
+        `INSERT INTO cards (board_id, title, description, type, status, priority, branch, module, position, source, created_by, completed_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ${completedAt})`,
       )
-      .run(input.boardId, input.title, input.description ?? null, status, priority, branch, module, position, source, input.createdBy ?? 'user');
+      .run(input.boardId, input.title, input.description ?? null, type, status, priority, branch, module, position, source, input.createdBy ?? 'user');
 
     return mapCardRow(this.getCardRowOrThrow(Number(insertResult.lastInsertRowid)));
   }
@@ -195,6 +207,14 @@ export class CardService {
     if (input.description !== undefined) {
       setClauses.push('description = ?');
       params.push(input.description);
+    }
+
+    if (input.type !== undefined) {
+      if (!isCardType(input.type)) {
+        throw new Error(`Invalid card type: ${String(input.type)}`);
+      }
+      setClauses.push('type = ?');
+      params.push(input.type);
     }
 
     if (input.priority !== undefined) {

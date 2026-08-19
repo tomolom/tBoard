@@ -2,11 +2,12 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult, ReadResourceResult } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 
-import type { CardPriority, CardStatus } from '../shared/api';
+import type { CardPriority, CardStatus, CardType } from '../shared/api';
 import type { TBoardMcpContext } from './context';
 import { recordMcpOutcome, recordMcpReceived } from './mcpEvents';
 
 const CARD_STATUSES = ['backlog', 'in_progress', 'in_review', 'done'] as const satisfies readonly CardStatus[];
+const CARD_TYPES = ['task', 'bug', 'feature'] as const satisfies readonly CardType[];
 const CARD_PRIORITIES = ['low', 'normal', 'high', 'urgent'] as const satisfies readonly CardPriority[];
 
 function jsonResult(value: unknown): CallToolResult {
@@ -138,11 +139,12 @@ export function createTBoardMcpServer(context: TBoardMcpContext): McpServer {
     'tboard_cards_create',
     {
       title: 'Create a card',
-      description: 'Creates a card on a board, optionally associated with a git branch.',
+      description: 'Creates a card on a board, optionally associated with a git branch and a repo module. Type is task (default), bug, or feature.',
       inputSchema: {
         boardId: z.number().int(),
         title: z.string().min(1),
         description: z.string().nullable().optional(),
+        type: z.enum(CARD_TYPES).optional(),
         status: z.enum(CARD_STATUSES).optional(),
         priority: z.enum(CARD_PRIORITIES).optional(),
         branch: z.string().nullable().optional(),
@@ -156,11 +158,12 @@ export function createTBoardMcpServer(context: TBoardMcpContext): McpServer {
     'tboard_cards_update',
     {
       title: 'Update a card',
-      description: 'Updates editable fields of a card (title, description, status, priority, branch, module). Only provided fields change.',
+      description: 'Updates editable fields of a card (title, description, type, status, priority, branch, module). Only provided fields change.',
       inputSchema: {
         id: z.number().int(),
         title: z.string().min(1).optional(),
         description: z.string().nullable().optional(),
+        type: z.enum(CARD_TYPES).optional(),
         status: z.enum(CARD_STATUSES).optional(),
         priority: z.enum(CARD_PRIORITIES).optional(),
         branch: z.string().nullable().optional(),

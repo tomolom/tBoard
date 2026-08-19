@@ -21,5 +21,10 @@ export const EMBEDDED_MIGRATIONS = [
     "version": 4,
     "name": "004_card_module_and_position.sql",
     "sql": "-- Migration 004: add a repo-module link and an explicit ordering position to\n-- cards.\n--\n--   * module   — an optional subfolder of the board's repo the card relates to\n--                (discovered from the repo, like branches). Free text at the DB\n--                level; the UI offers discovered folders.\n--   * position — a REAL sort key within a (board_id, status) column, so cards\n--                can be reordered by drag-and-drop. REAL (not INTEGER) allows a\n--                card to be dropped between two others by averaging their\n--                positions, with no bulk renumbering.\n--\n-- Both are additive columns, so no table rebuild is needed. Existing cards are\n-- backfilled with position = id (a stable, distinct order) so ordering by\n-- position matches the previous ins-order behavior.\n\nALTER TABLE cards ADD COLUMN module TEXT;\nALTER TABLE cards ADD COLUMN position REAL NOT NULL DEFAULT 0;\n\nUPDATE cards SET position = id;\n\nCREATE INDEX IF NOT EXISTS idx_cards_board_status_position ON cards(board_id, status, position);\n"
+  },
+  {
+    "version": 5,
+    "name": "005_card_type.sql",
+    "sql": "-- Migration 005: add a card type (task / bug / feature).\n--\n-- Lightweight categorization so cards can be marked as bugs, features, or plain\n-- tasks and filtered by it. Additive column, no table rebuild. Existing cards\n-- default to 'task'.\n\nALTER TABLE cards ADD COLUMN type TEXT NOT NULL DEFAULT 'task' CHECK (type IN ('task', 'bug', 'feature'));\n\nCREATE INDEX IF NOT EXISTS idx_cards_type ON cards(type);\n"
   }
 ] as const;

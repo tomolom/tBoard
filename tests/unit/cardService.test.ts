@@ -179,6 +179,21 @@ describe('CardService', () => {
     }
   });
 
+  it('defaults type to task and stores/validates bug + feature', () => {
+    const db = freshDb();
+    try {
+      const { boardId } = seedBoard(db, { repoPath: '/repos/app' });
+      const service = new CardService(db);
+      expect(service.createCard({ boardId, title: 'plain' }).type).toBe('task');
+      const bug = service.createCard({ boardId, title: 'crash', type: 'bug' });
+      expect(bug.type).toBe('bug');
+      expect(service.updateCard(bug.id, { type: 'feature' }).type).toBe('feature');
+      expect(() => service.createCard({ boardId, title: 'x', type: 'epic' as never })).toThrow(/type/i);
+    } finally {
+      db.close();
+    }
+  });
+
   it('stores an optional module on create and update', () => {
     const db = freshDb();
     try {
