@@ -114,7 +114,7 @@ npm run build                                          # builds the server bundl
 npm run server:push -- https://board.example.com       # (optional) seed it with your local board
 ```
 
-Full VPS + TLS + systemd walkthrough: **[docs/SELF_HOSTING.md](docs/SELF_HOSTING.md)**.
+Full VPS + TLS + systemd walkthrough: **[docs/SELF_HOSTING.md](docs/SELF_HOSTING.md)**. How local and remote fit together (syncing, pointing the app and agents at the remote board): **[docs/LOCAL_AND_REMOTE.md](docs/LOCAL_AND_REMOTE.md)**.
 
 ## Tech stack
 

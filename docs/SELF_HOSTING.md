@@ -147,6 +147,8 @@ board.example.com {
 
 Point your domain's DNS at the VPS. Confirm `https://board.example.com` shows the login screen.
 
+> New to the local/remote split? Read **[LOCAL_AND_REMOTE.md](LOCAL_AND_REMOTE.md)** for how the two stores, the app's remote mode, syncing, and agent (MCP) remote mode fit together.
+
 ## 6. Seed it with your local board (optional)
 
 Copy your existing local board (boards + cards) up to the server:
