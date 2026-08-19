@@ -44,13 +44,3 @@ export function resolveUserDataDir(): string {
 export function resolveDatabasePath(): string {
   return path.join(resolveUserDataDir(), 'tboard.sqlite');
 }
-
-/** The canonical evidence store root (sits beside the database). */
-export function resolveEvidenceRoot(): string {
-  return path.join(resolveUserDataDir(), 'evidence');
-}
-
-/** The canonical captured-command-output root (sits beside the database). */
-export function resolveCommandOutputRoot(): string {
-  return path.join(resolveUserDataDir(), 'command-output');
-}

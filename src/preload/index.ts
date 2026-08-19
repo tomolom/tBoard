@@ -1,47 +1,28 @@
 import { contextBridge, ipcRenderer } from 'electron';
 
-import type { CardStatus, CommandPreviewInput, CreateCardInput, EvidenceType, RepoRole, TBoardApi, UpdateCardInput } from '../shared/api';
+import type { AddBoardInput, CardStatus, CreateCardInput, TBoardApi, UpdateCardInput } from '../shared/api';
 
 const api: TBoardApi = {
-  settings: {
-    getWorkspaceRoot: () => ipcRenderer.invoke('settings:getWorkspaceRoot'),
-    setWorkspaceRoot: (workspaceRoot: string) => ipcRenderer.invoke('settings:setWorkspaceRoot', workspaceRoot),
-    getDefaultWorkspaceRoot: () => ipcRenderer.invoke('settings:getDefaultWorkspaceRoot'),
-  },
-  inventory: {
-    scanWorkspace: (workspaceRoot?: string) => ipcRenderer.invoke('inventory:scanWorkspace', workspaceRoot),
-    listRepoMappings: () => ipcRenderer.invoke('inventory:listRepoMappings'),
-    listComponentVariants: () => ipcRenderer.invoke('inventory:listComponentVariants'),
-  },
-  diff: {
-    scanDiffs: () => ipcRenderer.invoke('diff:scanDiffs'),
-    listDiffOverviews: () => ipcRenderer.invoke('diff:listDiffOverviews'),
-  },
-  evidence: {
-    importFiles: (componentVariantId: number, type: EvidenceType) => ipcRenderer.invoke('evidence:importFiles', componentVariantId, type),
-    listEvidence: () => ipcRenderer.invoke('evidence:listEvidence'),
-    listEvidenceForVariant: (componentVariantId: number) => ipcRenderer.invoke('evidence:listEvidenceForVariant', componentVariantId),
-  },
-  release: {
-    previewCopy: (componentVariantId: number) => ipcRenderer.invoke('release:previewCopy', componentVariantId),
-    applyCopy: (pendingOperationId: number) => ipcRenderer.invoke('release:applyCopy', pendingOperationId),
+  boards: {
+    list: () => ipcRenderer.invoke('boards:list'),
+    add: (input: AddBoardInput) => ipcRenderer.invoke('boards:add', input),
+    remove: (id: number) => ipcRenderer.invoke('boards:remove', id),
+    branches: (boardId: number) => ipcRenderer.invoke('boards:branches', boardId),
+    pickRepoFolder: () => ipcRenderer.invoke('boards:pickRepoFolder'),
   },
   cards: {
-    createCard: (input: CreateCardInput) => ipcRenderer.invoke('cards:createCard', input),
-    listCards: () => ipcRenderer.invoke('cards:listCards'),
-    updateCard: (id: number, input: UpdateCardInput) => ipcRenderer.invoke('cards:updateCard', id, input),
-    moveCard: (id: number, status: CardStatus) => ipcRenderer.invoke('cards:moveCard', id, status),
+    list: (boardId: number) => ipcRenderer.invoke('cards:list', boardId),
+    create: (input: CreateCardInput) => ipcRenderer.invoke('cards:create', input),
+    update: (id: number, input: UpdateCardInput) => ipcRenderer.invoke('cards:update', id, input),
+    move: (id: number, status: CardStatus) => ipcRenderer.invoke('cards:move', id, status),
+    remove: (id: number) => ipcRenderer.invoke('cards:remove', id),
+  },
+  settings: {
+    getLastBoardId: () => ipcRenderer.invoke('settings:getLastBoardId'),
+    setLastBoardId: (boardId: number | null) => ipcRenderer.invoke('settings:setLastBoardId', boardId),
   },
   clipboard: {
     writeText: (text: string) => ipcRenderer.invoke('clipboard:writeText', text),
-  },
-  commands: {
-    gitStatus: (repoMappingId: number, role: RepoRole) => ipcRenderer.invoke('commands:gitStatus', repoMappingId, role),
-    preview: (input: CommandPreviewInput) => ipcRenderer.invoke('commands:preview', input),
-    apply: (pendingOperationId: number) => ipcRenderer.invoke('commands:apply', pendingOperationId),
-    listRuns: (limit?: number | null) => ipcRenderer.invoke('commands:listRuns', limit),
-    readRunOutput: (runId: number) => ipcRenderer.invoke('commands:readRunOutput', runId),
-    revealRunOutput: (runId: number) => ipcRenderer.invoke('commands:revealRunOutput', runId),
   },
 };
 

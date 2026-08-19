@@ -2,13 +2,7 @@ import path from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import {
-  APP_DIR_NAME,
-  resolveCommandOutputRoot,
-  resolveDatabasePath,
-  resolveEvidenceRoot,
-  resolveUserDataDir,
-} from '../../src/shared/appPaths';
+import { APP_DIR_NAME, resolveDatabasePath, resolveUserDataDir } from '../../src/shared/appPaths';
 import { resolveDbPath } from '../../src/mcp/context';
 
 describe('shared app paths', () => {
@@ -28,11 +22,9 @@ describe('shared app paths', () => {
     expect(APP_DIR_NAME).toBe('tboard');
   });
 
-  it('places the database, evidence, and command-output under one user-data dir', () => {
+  it('places the database under the user-data dir', () => {
     const dir = resolveUserDataDir();
     expect(resolveDatabasePath()).toBe(path.join(dir, 'tboard.sqlite'));
-    expect(resolveEvidenceRoot()).toBe(path.join(dir, 'evidence'));
-    expect(resolveCommandOutputRoot()).toBe(path.join(dir, 'command-output'));
   });
 
   it('unifies the MCP default database with the app database path', () => {

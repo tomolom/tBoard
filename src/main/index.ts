@@ -2,7 +2,7 @@ import { app, BrowserWindow } from 'electron';
 import path, { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { createDatabase, getRuntimeDatabasePath, getRuntimeEvidenceRoot } from './db/connection';
+import { createDatabase, getRuntimeDatabasePath } from './db/connection';
 import { runMigrations } from './db/migrations';
 import { registerIpcHandlers } from './ipc';
 
@@ -39,7 +39,7 @@ function createMainWindow(): BrowserWindow {
 app.whenReady().then(() => {
   const db = createDatabase(getRuntimeDatabasePath());
   runMigrations(db);
-  registerIpcHandlers(db, getRuntimeEvidenceRoot());
+  registerIpcHandlers(db);
 
   createMainWindow();
 

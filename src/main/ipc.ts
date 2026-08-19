@@ -1,73 +1,53 @@
-import { BrowserWindow, clipboard, dialog, ipcMain, shell } from 'electron';
+import { BrowserWindow, clipboard, dialog, ipcMain } from 'electron';
 
-import type { CardStatus, ClipboardWriteResult, CommandPreviewInput, CreateCardInput, EvidenceType, RepoRole, RevealResult, UpdateCardInput } from '../shared/api';
-import { getRuntimeCommandOutputRoot, getRuntimeDefaultWorkspaceRoot, type SqliteDatabase } from './db/connection';
+import type {
+  AddBoardInput,
+  CardStatus,
+  ClipboardWriteResult,
+  CreateCardInput,
+  UpdateCardInput,
+} from '../shared/api';
+import type { SqliteDatabase } from './db/connection';
+import { BoardService } from './services/boardService';
 import { CardService } from './services/cardService';
-import { CommandService } from './services/commandService';
-import { DiffService } from './services/diffService';
-import { EvidenceService } from './services/evidenceService';
-import { InventoryService } from './services/inventoryService';
-import { ReleaseCopyService } from './services/releaseCopyService';
+import { listBranches } from './services/gitBranches';
 import { SettingsService } from './services/settingsService';
 
-export function registerIpcHandlers(db: SqliteDatabase, evidenceRoot: string): void {
+export function registerIpcHandlers(db: SqliteDatabase): void {
   const settings = new SettingsService(db);
-  const inventory = new InventoryService(db);
-  const diff = new DiffService(db);
-  const evidence = new EvidenceService(db, evidenceRoot);
-  const releaseCopy = new ReleaseCopyService(db);
+  const boards = new BoardService(db);
   const cards = new CardService(db);
-  const commands = new CommandService(db, getRuntimeCommandOutputRoot());
 
-  ipcMain.handle('settings:getWorkspaceRoot', () => settings.getWorkspaceRoot());
-  ipcMain.handle('settings:setWorkspaceRoot', (_event, workspaceRoot: string) => settings.setWorkspaceRoot(workspaceRoot));
-  ipcMain.handle('settings:getDefaultWorkspaceRoot', () => getRuntimeDefaultWorkspaceRoot());
+  ipcMain.handle('boards:list', () => boards.listBoards());
+  ipcMain.handle('boards:add', (_event, input: AddBoardInput) => boards.addBoard(input));
+  ipcMain.handle('boards:remove', (_event, id: number) => boards.removeBoard(id));
+  ipcMain.handle('boards:branches', (_event, boardId: number) => {
+    const board = boards.getBoard(boardId);
+    if (!board) {
+      return { branches: [], current: null, error: `Board ${boardId} was not found.` };
+    }
+    return listBranches(board.repoPath);
+  });
 
-  ipcMain.handle('inventory:scanWorkspace', (_event, workspaceRoot?: string) => inventory.scanWorkspace(workspaceRoot));
-  ipcMain.handle('inventory:listRepoMappings', () => inventory.listRepoMappings());
-  ipcMain.handle('inventory:listComponentVariants', () => inventory.listComponentVariants());
-
-  ipcMain.handle('diff:scanDiffs', () => diff.scanDiffs());
-  ipcMain.handle('diff:listDiffOverviews', () => diff.listDiffOverviews());
-
-  ipcMain.handle('evidence:importFiles', async (event, componentVariantId: number, type: EvidenceType) => {
+  // Opens a native folder picker and returns the chosen path (or null).
+  ipcMain.handle('boards:pickRepoFolder', async (event): Promise<string | null> => {
     const window = BrowserWindow.fromWebContents(event.sender);
-    const dialogOptions = { properties: ['openFile', 'multiSelections'] as Array<'openFile' | 'multiSelections'> };
-    const result = window ? await dialog.showOpenDialog(window, dialogOptions) : await dialog.showOpenDialog(dialogOptions);
-
+    const options = { properties: ['openDirectory'] as Array<'openDirectory'> };
+    const result = window ? await dialog.showOpenDialog(window, options) : await dialog.showOpenDialog(options);
     if (result.canceled || result.filePaths.length === 0) {
-      return { imported: [], warnings: [] };
+      return null;
     }
-
-    return evidence.importFiles(componentVariantId, type, result.filePaths);
+    return result.filePaths[0];
   });
-  ipcMain.handle('evidence:listEvidence', () => evidence.listEvidence());
-  ipcMain.handle('evidence:listEvidenceForVariant', (_event, componentVariantId: number) => evidence.listEvidenceForVariant(componentVariantId));
 
-  ipcMain.handle('release:previewCopy', (_event, componentVariantId: number) => releaseCopy.previewCopy(componentVariantId));
-  ipcMain.handle('release:applyCopy', (_event, pendingOperationId: number) => releaseCopy.applyCopy(pendingOperationId));
+  ipcMain.handle('cards:list', (_event, boardId: number) => cards.listCards(boardId));
+  ipcMain.handle('cards:create', (_event, input: CreateCardInput) => cards.createCard(input));
+  ipcMain.handle('cards:update', (_event, id: number, input: UpdateCardInput) => cards.updateCard(id, input));
+  ipcMain.handle('cards:move', (_event, id: number, status: CardStatus) => cards.moveCard(id, status));
+  ipcMain.handle('cards:remove', (_event, id: number) => cards.removeCard(id));
 
-  ipcMain.handle('cards:createCard', (_event, input: CreateCardInput) => cards.createCard(input));
-  ipcMain.handle('cards:listCards', () => cards.listCards());
-  ipcMain.handle('cards:updateCard', (_event, id: number, input: UpdateCardInput) => cards.updateCard(id, input));
-  ipcMain.handle('cards:moveCard', (_event, id: number, status: CardStatus) => cards.moveCard(id, status));
-
-  ipcMain.handle('commands:gitStatus', (_event, repoMappingId: number, role: RepoRole) => commands.gitStatus(repoMappingId, role));
-  ipcMain.handle('commands:preview', (_event, input: CommandPreviewInput) => commands.preview(input));
-  ipcMain.handle('commands:apply', (_event, pendingOperationId: number) => commands.apply(pendingOperationId));
-  ipcMain.handle('commands:listRuns', (_event, limit?: number | null) => commands.listRuns(limit));
-  ipcMain.handle('commands:readRunOutput', (_event, runId: number) => commands.readRunOutput(runId));
-  ipcMain.handle('commands:revealRunOutput', async (_event, runId: number): Promise<RevealResult> => {
-    const dir = commands.resolveRunOutputDir(runId);
-    if (!dir) {
-      return { revealed: false, path: null, error: `No output directory found for run ${runId}.` };
-    }
-    const errorMessage = await shell.openPath(dir);
-    if (errorMessage) {
-      return { revealed: false, path: dir, error: errorMessage };
-    }
-    return { revealed: true, path: dir, error: null };
-  });
+  ipcMain.handle('settings:getLastBoardId', () => settings.getLastBoardId());
+  ipcMain.handle('settings:setLastBoardId', (_event, boardId: number | null) => settings.setLastBoardId(boardId));
 
   ipcMain.handle('clipboard:writeText', (_event, text: unknown): ClipboardWriteResult => {
     if (typeof text !== 'string') {

@@ -13,7 +13,7 @@
  * Exits non-zero on any failure, making it usable as a CI/local gate:
  *   npm run mcp:smoke
  */
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
@@ -23,27 +23,13 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 
 const EXPECTED_TOOLS = [
+  'tboard_boards_add',
+  'tboard_boards_branches',
+  'tboard_boards_list',
   'tboard_cards_create',
   'tboard_cards_list',
   'tboard_cards_move',
   'tboard_cards_update',
-  'tboard_commands_git_status',
-  'tboard_commands_list_runs',
-  'tboard_commands_preview',
-  'tboard_commands_read_run_output',
-  'tboard_diff_list',
-  'tboard_diff_scan',
-  'tboard_evidence_import',
-  'tboard_evidence_list',
-  'tboard_evidence_list_for_variant',
-  'tboard_inventory_list_repo_mappings',
-  'tboard_inventory_list_variants',
-  'tboard_inventory_scan',
-  'tboard_next_work',
-  'tboard_pending_operations_list',
-  'tboard_release_preview_copy',
-  'tboard_settings_get',
-  'tboard_settings_set_workspace_root',
 ].sort();
 
 type TextContent = { type: string; text?: string };
@@ -70,6 +56,9 @@ async function main(): Promise<void> {
 
   const tempDir = mkdtempSync(path.join(tmpdir(), 'tboard-mcp-smoke-'));
   const dbPath = path.join(tempDir, 'tboard.sqlite');
+  // A throwaway "git repo" (a dir with a .git folder) to register as a board.
+  const repoDir = path.join(tempDir, 'sample-repo');
+  mkdirSync(path.join(repoDir, '.git'), { recursive: true });
 
   const transport = new StdioClientTransport({
     command: process.execPath,
@@ -77,7 +66,6 @@ async function main(): Promise<void> {
     env: {
       ...(process.env as Record<string, string>),
       TBOARD_DB_PATH: dbPath,
-      TBOARD_EVIDENCE_ROOT: path.join(tempDir, 'evidence'),
     },
     cwd: projectRoot,
     stderr: 'inherit',
@@ -95,29 +83,35 @@ async function main(): Promise<void> {
       names.length === EXPECTED_TOOLS.length && names.every((n, i) => n === EXPECTED_TOOLS[i]),
       `tool surface mismatch.\n  expected: ${EXPECTED_TOOLS.join(', ')}\n  actual:   ${names.join(', ')}`,
     );
-    for (const name of names) {
-      assert(!/apply/i.test(name), `unsafe tool exposed over MCP: ${name}`);
-    }
-    console.log(`[smoke] tool surface OK (${names.length} safe tools, no apply/write tools)`);
+    console.log(`[smoke] tool surface OK (${names.length} tools)`);
+
+    const added = parseToolJson(
+      await client.callTool({ name: 'tboard_boards_add', arguments: { repoPath: repoDir, name: 'Sample' } }),
+    ) as { board: { id: number } | null; error: string | null };
+    assert(added.board !== null && typeof added.board.id === 'number', `board add failed: ${added.error ?? 'unknown'}`);
+    const boardId = added.board.id;
+    console.log(`[smoke] added board #${boardId} over the protocol`);
 
     const created = parseToolJson(
       await client.callTool({
         name: 'tboard_cards_create',
-        arguments: { type: 'task', title: 'MCP smoke card' },
+        arguments: { boardId, title: 'MCP smoke card', branch: 'main' },
       }),
-    ) as { id: number; title: string };
+    ) as { id: number; title: string; boardId: number; branch: string | null };
     assert(typeof created.id === 'number' && created.id > 0, 'created card missing id');
     assert(created.title === 'MCP smoke card', 'created card title mismatch');
-    console.log(`[smoke] created card #${created.id} over the protocol`);
+    assert(created.boardId === boardId, 'created card not linked to the board');
+    assert(created.branch === 'main', 'created card branch mismatch');
+    console.log(`[smoke] created card #${created.id} on board #${boardId}`);
 
     const listed = parseToolJson(
-      await client.callTool({ name: 'tboard_cards_list', arguments: {} }),
+      await client.callTool({ name: 'tboard_cards_list', arguments: { boardId } }),
     ) as Array<{ id: number }>;
     assert(
       listed.some((card) => card.id === created.id),
       'created card not returned by tboard_cards_list',
     );
-    console.log('[smoke] card round-trip OK');
+    console.log('[smoke] board + card round-trip OK');
 
     console.log('[smoke] PASS');
   } finally {
