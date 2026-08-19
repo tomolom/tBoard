@@ -1,0 +1,48 @@
+# One-command tBoard deployment: the Node server + Caddy (automatic HTTPS).
+#
+#   1. cp .env.example .env  and fill in DOMAIN, TBOARD_PUBLIC_ORIGIN,
+#      TBOARD_AUTH_PASSWORD_HASH (from `npm run server:hash-password`).
+#   2. Point your domain's DNS A record at this host.
+#   3. docker compose up -d --build
+#
+# Caddy fetches a free TLS cert for DOMAIN automatically. The tBoard container
+# is NOT published to the host (only `expose`), so the internet reaches it only
+# through Caddy.
+
+services:
+  tboard:
+    build: .
+    restart: unless-stopped
+    environment:
+      TBOARD_PUBLIC_ORIGIN: ${TBOARD_PUBLIC_ORIGIN}
+      TBOARD_AUTH_PASSWORD_HASH: ${TBOARD_AUTH_PASSWORD_HASH}
+      TBOARD_DB_PATH: /data/tboard.sqlite
+      TBOARD_SERVER_HOST: 0.0.0.0
+      TBOARD_SERVER_PORT: "8787"
+      # Only Caddy can reach this container (port not published), so trusting the
+      # proxy for real client IPs is safe here.
+      TBOARD_TRUST_PROXY: "true"
+    volumes:
+      - tboard-data:/data
+    expose:
+      - "8787"
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - tboard
+
+volumes:
+  tboard-data:
+  caddy-data:
+  caddy-config:

@@ -1,0 +1,11 @@
+# Caddy reverse proxy for tBoard. {$DOMAIN} is substituted from the environment
+# (set in .env / docker-compose). Caddy obtains and renews a TLS certificate for
+# it automatically, and forwards to the tboard container on the compose network.
+{$DOMAIN} {
+	reverse_proxy tboard:8787
+
+	# SSE needs unbuffered streaming; Caddy streams by default, but be explicit.
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+	}
+}

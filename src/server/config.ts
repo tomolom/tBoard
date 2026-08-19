@@ -14,7 +14,27 @@ export type ServerConfig = {
   passwordHash: string;
   /** Whether to mark cookies Secure (true in production behind TLS). */
   cookieSecure: boolean;
+  /**
+   * Fastify trustProxy value. 'loopback' (default) suits a reverse proxy on the
+   * same host (systemd + Caddy). In Docker, Caddy is a separate container and
+   * the tBoard port is NOT published to the host, so only Caddy can reach it —
+   * set TBOARD_TRUST_PROXY=true there to read the real client IP. Never set true
+   * on a server whose port is directly reachable (spoofable X-Forwarded-For).
+   */
+  trustProxy: boolean | string;
 };
+
+function parseTrustProxy(value: string | undefined): boolean | string {
+  if (value === undefined || value.trim() === '') {
+    return 'loopback';
+  }
+  const trimmed = value.trim();
+  if (trimmed === 'true' || trimmed === 'false') {
+    return trimmed === 'true';
+  }
+  // An IP, subnet, or 'loopback'/'linklocal'/'uniquelocal' keyword.
+  return trimmed;
+}
 
 function parseBooleanEnv(value: string | undefined, fallback: boolean): boolean {
   if (value === undefined) {
@@ -59,5 +79,6 @@ export function loadServerConfig(env: NodeJS.ProcessEnv = process.env): ServerCo
     passwordHash,
     // Secure cookies by default; opt out only for local http testing.
     cookieSecure: parseBooleanEnv(env.TBOARD_COOKIE_SECURE, true),
+    trustProxy: parseTrustProxy(env.TBOARD_TRUST_PROXY),
   };
 }

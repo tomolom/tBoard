@@ -42,8 +42,9 @@ export async function buildServer(options: BuildServerOptions): Promise<FastifyI
   const { db, config } = options;
   const app = Fastify({
     bodyLimit: JSON_BODY_LIMIT,
-    // Only the loopback reverse proxy is trusted for X-Forwarded-* headers.
-    trustProxy: 'loopback',
+    // Trust X-Forwarded-* only from the configured proxy (loopback by default;
+    // a single hop in Docker). Never trust arbitrary forwarded headers.
+    trustProxy: config.trustProxy,
   });
 
   const sessions = new SessionStore(db);

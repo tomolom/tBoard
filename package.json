@@ -5,7 +5,7 @@
   "main": "out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",
-    "build": "tsc --noEmit && electron-vite build && node scripts/buildMcp.mjs",
+    "build": "tsc --noEmit && electron-vite build && node scripts/buildMcp.mjs && node scripts/buildServer.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest",
     "test:run": "vitest run",

@@ -16,6 +16,7 @@ const config: ServerConfig = {
   publicOrigin: ORIGIN,
   passwordHash: hashPassword(PASSWORD),
   cookieSecure: false, // inject() is not TLS; __Host- cookies still parse in tests
+  trustProxy: 'loopback',
 };
 
 describe('web server', () => {

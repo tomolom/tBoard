@@ -6,6 +6,23 @@ tBoard is **local-first by default** — the desktop app owns a local SQLite fil
 
 ---
 
+## Fastest path: Docker Compose (recommended)
+
+This bundles the server + Caddy (automatic HTTPS). On a fresh VPS with Docker installed:
+
+```bash
+git clone https://github.com/tomolom/tBoard.git && cd tBoard
+cp .env.example .env
+# Make a password hash (needs Node locally, or run it inside the build image):
+npm run server:hash-password -- "a long passphrase"
+nano .env        # set DOMAIN, TBOARD_PUBLIC_ORIGIN, TBOARD_AUTH_PASSWORD_HASH
+docker compose up -d --build
+```
+
+Point your domain's DNS **A record** at the VPS first. Caddy fetches a TLS cert automatically; the tBoard container is never exposed to the internet directly (only Caddy's 80/443 are published). Visit `https://your-domain` and log in. Update later with `git pull && docker compose up -d --build`.
+
+The manual (systemd) path below is the alternative if you'd rather not use Docker.
+
 ## Architecture
 
 The web server (`src/server/`) is a third entrypoint alongside the desktop app and the MCP server — it reuses the same services against a SQLite database. It:
