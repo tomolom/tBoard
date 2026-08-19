@@ -1,0 +1,50 @@
+appId: com.tomol.tboard
+productName: tBoard
+copyright: Copyright © 2026 tomol
+
+# electron-vite emits to out/; electron-builder includes out/** + package.json +
+# production node_modules automatically. Exclude source and dev-only files.
+files:
+  - out/**
+  - package.json
+  - '!**/*.{ts,tsx,map}'
+  - '!**/tsconfig*.json'
+  - '!src/*'
+  - '!tests/*'
+  - '!docs/*'
+  - '!scripts/*'
+  - '!electron.vite.config.*'
+  - '!vitest.config.*'
+  - '!electron-builder.yml'
+
+# better-sqlite3 ships an N-API prebuilt .node (node_modules/better-sqlite3/
+# prebuilds/<platform>-<arch>.node). Native binaries cannot be loaded from inside
+# an asar archive, so the whole package is unpacked to app.asar.unpacked.
+asarUnpack:
+  - node_modules/better-sqlite3/**
+
+# Native deps are matched to the Electron ABI by the `postinstall` step
+# (electron-builder install-app-deps). better-sqlite3 v13 is N-API, so this does
+# not build from source; do not rebuild again during packaging.
+npmRebuild: false
+
+directories:
+  output: dist
+  buildResources: build
+
+win:
+  target:
+    - nsis
+    - portable
+  artifactName: ${productName}-${version}-${arch}.${ext}
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  shortcutName: ${productName}
+  uninstallDisplayName: ${productName} ${version}
+  createDesktopShortcut: always
+
+portable:
+  artifactName: ${productName}-${version}-portable.${ext}
