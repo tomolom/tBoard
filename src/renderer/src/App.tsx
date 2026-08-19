@@ -213,6 +213,7 @@ export default function App() {
   const autoScrollVectorRef = useRef({ x: 0, y: 0 });
 
   const [newTitle, setNewTitle] = useState('');
+  const [newDescription, setNewDescription] = useState('');
   const [newBranch, setNewBranch] = useState('');
   // Once the user picks a branch for new cards, auto-refresh stops overriding it.
   const [composerBranchTouched, setComposerBranchTouched] = useState(false);
@@ -391,6 +392,7 @@ export default function App() {
     setCardError(null);
     setComposerBranchTouched(false);
     setNewModule('');
+    setNewDescription('');
 
     // Every state write is guarded: switching boards quickly must not let a
     // slower earlier response overwrite the newer board's data.
@@ -734,15 +736,18 @@ export default function App() {
     try {
       const branch = newBranch.trim();
       const module = newModule.trim();
+      const description = newDescription.trim();
       await window.tBoard.cards.create({
         boardId: selectedBoardId,
         title,
+        description: description === '' ? null : description,
         type: newType,
         priority: newPriority,
         branch: branch === '' ? null : branch,
         module: module === '' ? null : module,
       });
       setNewTitle('');
+      setNewDescription('');
       setComposerOpen(false);
       await refreshCards(selectedBoardId);
     } catch (createError) {
@@ -1362,6 +1367,16 @@ export default function App() {
               }
             }}
             placeholder="Card title"
+          />
+        </label>
+        <label className="field">
+          <span>Description</span>
+          <textarea
+            className="composer-description"
+            value={newDescription}
+            onChange={(event) => setNewDescription(event.target.value)}
+            rows={3}
+            placeholder="Description (optional)"
           />
         </label>
         <div className="composer-row">

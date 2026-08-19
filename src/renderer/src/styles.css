@@ -677,6 +677,18 @@ code {
   min-width: 0;
 }
 
+/*
+ * Sized to the 22rem popover. Vertical resize is allowed, but capped so a long
+ * description cannot grow the popover past the viewport and push the actions
+ * out of reach.
+ */
+.composer-description {
+  max-height: 12rem;
+  min-height: 4.5rem;
+  resize: vertical;
+  width: 100%;
+}
+
 .composer-row {
   display: grid;
   gap: 0.7rem;
