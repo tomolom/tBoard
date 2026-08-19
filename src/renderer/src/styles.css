@@ -589,6 +589,17 @@ code {
   text-decoration: underline;
 }
 
+/* Single clamped line — signals "this card has notes" without growing it. */
+.card-note {
+  color: var(--text-dim);
+  font-size: 0.78rem;
+  line-height: 1.35;
+  margin: -0.1rem 0 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .badges {
   display: flex;
   flex-wrap: wrap;
@@ -637,6 +648,34 @@ code {
 .module-badge {
   background: var(--purple-soft);
   color: var(--purple);
+}
+
+/* Type: task stays neutral so bug and feature are what the eye finds. */
+.type-badge {
+  letter-spacing: 0.01em;
+}
+
+.type-task {
+  background: none;
+  border: 1px solid var(--border-strong);
+  color: var(--text-dim);
+  font-weight: 600;
+}
+
+.type-bug {
+  background: var(--deleted-soft);
+  color: var(--deleted);
+}
+
+.type-feature {
+  background: var(--added-soft);
+  color: var(--added);
+}
+
+.type-icon {
+  flex: none;
+  height: 0.85em;
+  width: 0.85em;
 }
 
 .meta-badge .meta-name {
@@ -781,6 +820,10 @@ code {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.drawer-row.pair {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .drawer-actions {
   align-items: center;
   display: flex;
@@ -848,7 +891,8 @@ code {
     width: 100%;
   }
 
-  .drawer-row {
+  .drawer-row,
+  .drawer-row.pair {
     grid-template-columns: 1fr;
   }
 }

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { DragEvent } from 'react';
 
-import type { BoardDto, BranchDto, CardDto, CardPriority, CardStatus, TBoardApi } from '../../shared/api';
+import type { BoardDto, BranchDto, CardDto, CardPriority, CardStatus, CardType, TBoardApi } from '../../shared/api';
 import { useFocusTrap } from './useFocusTrap';
 
 declare global {
@@ -12,6 +12,7 @@ declare global {
 
 const STATUSES: CardStatus[] = ['backlog', 'in_progress', 'in_review', 'done'];
 const PRIORITIES: CardPriority[] = ['low', 'normal', 'high', 'urgent'];
+const CARD_TYPES: CardType[] = ['task', 'bug', 'feature'];
 
 /** Sentinels for the filters — real branch/module names are used as-is. */
 const FILTER_ALL = '\u0000all';
@@ -72,6 +73,42 @@ function BranchBadge({ branch }: { branch: string }) {
     <small className="meta-badge branch-badge" title={`Branch: ${branch}`}>
       <span aria-hidden="true">&#9095;</span>
       <span className="meta-name">{branch}</span>
+    </small>
+  );
+}
+
+/**
+ * Type badge. `task` is the default and stays neutral so that bugs and
+ * features are what the eye catches when scanning a column.
+ */
+function TypeBadge({ type }: { type: CardType }) {
+  if (type === 'bug') {
+    return (
+      <small className="meta-badge type-badge type-bug" title="Bug">
+        <svg className="type-icon" viewBox="0 0 12 12" aria-hidden="true" focusable="false">
+          <path
+            d="M6 1a2 2 0 0 1 1.83 1.2A3 3 0 0 1 9 4.6V5h1.4a.6.6 0 0 1 0 1.2H9v.6q0 .3-.05.6h1.45a.6.6 0 0 1 0 1.2H8.5A3 3 0 0 1 6 11a3 3 0 0 1-2.5-2.4H1.6a.6.6 0 0 1 0-1.2h1.45Q3 7.1 3 6.8v-.6H1.6a.6.6 0 0 1 0-1.2H3v-.4a3 3 0 0 1 1.17-2.4A2 2 0 0 1 6 1"
+            fill="currentColor"
+          />
+        </svg>
+        Bug
+      </small>
+    );
+  }
+  if (type === 'feature') {
+    return (
+      <small className="meta-badge type-badge type-feature" title="Feature">
+        <svg className="type-icon" viewBox="0 0 12 12" aria-hidden="true" focusable="false">
+          <path d="M6 0.8 7.15 4.1 10.6 5.2 7.15 6.3 6 9.6 4.85 6.3 1.4 5.2 4.85 4.1Z" fill="currentColor" />
+          <path d="M9.9 7.7 10.4 9.1 11.8 9.6 10.4 10.1 9.9 11.5 9.4 10.1 8 9.6 9.4 9.1Z" fill="currentColor" />
+        </svg>
+        Feature
+      </small>
+    );
+  }
+  return (
+    <small className="meta-badge type-badge type-task" title="Task">
+      Task
     </small>
   );
 }
@@ -144,6 +181,7 @@ export default function App() {
 
   const [branchFilter, setBranchFilter] = useState<string>(FILTER_ALL);
   const [moduleFilter, setModuleFilter] = useState<string>(FILTER_ALL);
+  const [typeFilter, setTypeFilter] = useState<string>(FILTER_ALL);
 
   const [renaming, setRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState('');
@@ -158,6 +196,7 @@ export default function App() {
   // Once the user picks a branch for new cards, auto-refresh stops overriding it.
   const [composerBranchTouched, setComposerBranchTouched] = useState(false);
   const [newModule, setNewModule] = useState('');
+  const [newType, setNewType] = useState<CardType>('task');
   const [newPriority, setNewPriority] = useState<CardPriority>('normal');
   const [creating, setCreating] = useState(false);
 
@@ -168,6 +207,7 @@ export default function App() {
   const [detailPriority, setDetailPriority] = useState<CardPriority>('normal');
   const [detailBranch, setDetailBranch] = useState('');
   const [detailModule, setDetailModule] = useState('');
+  const [detailType, setDetailType] = useState<CardType>('task');
   const [detailBusy, setDetailBusy] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
   const [deleteArmed, setDeleteArmed] = useState(false);
@@ -233,11 +273,10 @@ export default function App() {
       const moduleOk =
         moduleFilter === FILTER_ALL ||
         (moduleFilter === FILTER_NONE ? card.module === null : card.module === moduleFilter);
-      return branchOk && moduleOk;
+      const typeOk = typeFilter === FILTER_ALL || card.type === typeFilter;
+      return branchOk && moduleOk && typeOk;
     });
-  }, [cards, branchFilter, moduleFilter]);
-
-  const filtersActive = branchFilter !== FILTER_ALL || moduleFilter !== FILTER_ALL;
+  }, [cards, branchFilter, moduleFilter, typeFilter]);
 
   const cardsByStatus = useMemo(() => {
     const grouped = new Map<CardStatus, CardDto[]>(STATUSES.map((status) => [status, []]));
@@ -314,6 +353,7 @@ export default function App() {
     let cancelled = false;
     setBranchFilter(FILTER_ALL);
     setModuleFilter(FILTER_ALL);
+    setTypeFilter(FILTER_ALL);
     setSelectedCardId(null);
     setCardError(null);
     setComposerBranchTouched(false);
@@ -369,6 +409,13 @@ export default function App() {
       setModuleFilter(FILTER_ALL);
     }
   }, [moduleFilter, moduleOptions]);
+
+  // Card types are a fixed set, so this only guards against a stale value.
+  useEffect(() => {
+    if (typeFilter !== FILTER_ALL && !CARD_TYPES.includes(typeFilter as CardType)) {
+      setTypeFilter(FILTER_ALL);
+    }
+  }, [typeFilter]);
 
   /**
    * Re-read branches/modules when the window regains focus, so a branch checked
@@ -513,6 +560,7 @@ export default function App() {
       await window.tBoard.cards.create({
         boardId: selectedBoardId,
         title,
+        type: newType,
         priority: newPriority,
         branch: branch === '' ? null : branch,
         module: module === '' ? null : module,
@@ -638,6 +686,7 @@ export default function App() {
     setDetailPriority(card.priority);
     setDetailBranch(card.branch ?? '');
     setDetailModule(card.module ?? '');
+    setDetailType(card.type);
     setDetailError(null);
     setDeleteArmed(false);
   }
@@ -661,7 +710,8 @@ export default function App() {
       detailStatus !== selectedCard.status ||
       detailPriority !== selectedCard.priority ||
       detailBranch !== (selectedCard.branch ?? '') ||
-      detailModule !== (selectedCard.module ?? ''));
+      detailModule !== (selectedCard.module ?? '') ||
+      detailType !== selectedCard.type);
 
   async function saveCardDetail(): Promise<void> {
     if (selectedCard === null) {
@@ -681,6 +731,7 @@ export default function App() {
       await window.tBoard.cards.update(selectedCard.id, {
         title,
         description: description === '' ? null : description,
+        type: detailType,
         status: detailStatus,
         priority: detailPriority,
         branch: branch === '' ? null : branch,
@@ -906,6 +957,20 @@ export default function App() {
           ) : null}
 
           {selectedBoard ? (
+            <label className="field inline narrow">
+              <span>Type</span>
+              <select value={typeFilter} onChange={(event) => setTypeFilter(event.target.value)}>
+                <option value={FILTER_ALL}>All Types</option>
+                {CARD_TYPES.map((type) => (
+                  <option key={type} value={type}>
+                    {humanizeLabel(type)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+
+          {selectedBoard ? (
             <button
               type="button"
               onClick={() => void refreshRepoMetaNow()}
@@ -971,6 +1036,16 @@ export default function App() {
           {renderModuleField(newModule, setNewModule)}
         </label>
         <label className="field narrow">
+          <span>Type</span>
+          <select value={newType} onChange={(event) => setNewType(event.target.value as CardType)}>
+            {CARD_TYPES.map((type) => (
+              <option key={type} value={type}>
+                {humanizeLabel(type)}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="field narrow">
           <span>Priority</span>
           <select value={newPriority} onChange={(event) => setNewPriority(event.target.value as CardPriority)}>
             {PRIORITIES.map((priority) => (
@@ -995,6 +1070,7 @@ export default function App() {
   function clearFilters(): void {
     setBranchFilter(FILTER_ALL);
     setModuleFilter(FILTER_ALL);
+    setTypeFilter(FILTER_ALL);
   }
 
   function renderBoardEmptyNote() {
@@ -1060,7 +1136,15 @@ export default function App() {
                     <button type="button" className="card-open" onClick={() => openCardDetail(card)}>
                       {card.title}
                     </button>
+                    {/* One clamped line so a card with notes reads differently
+                        from one without, without growing the card. */}
+                    {card.description?.trim() ? (
+                      <p className="card-note" title={card.description}>
+                        {card.description}
+                      </p>
+                    ) : null}
                     <div className="badges">
+                      <TypeBadge type={card.type} />
                       {card.branch ? <BranchBadge branch={card.branch} /> : null}
                       {card.module ? <ModuleBadge module={card.module} /> : null}
                       <small className={`priority-${card.priority}`}>{humanizeLabel(card.priority)}</small>
@@ -1127,6 +1211,7 @@ export default function App() {
               </p>
               <h2 id="card-drawer-title">{selectedCard.title}</h2>
               <div className="badges">
+                <TypeBadge type={selectedCard.type} />
                 {selectedCard.branch ? <BranchBadge branch={selectedCard.branch} /> : null}
                 {selectedCard.module ? <ModuleBadge module={selectedCard.module} /> : null}
               </div>
@@ -1160,6 +1245,16 @@ export default function App() {
               </label>
               <div className="drawer-row">
                 <label className="drawer-field field">
+                  <span>Type</span>
+                  <select value={detailType} onChange={(event) => setDetailType(event.target.value as CardType)}>
+                    {CARD_TYPES.map((type) => (
+                      <option key={type} value={type}>
+                        {humanizeLabel(type)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="drawer-field field">
                   <span>Status</span>
                   <select value={detailStatus} onChange={(event) => setDetailStatus(event.target.value as CardStatus)}>
                     {STATUSES.map((status) => (
@@ -1182,16 +1277,18 @@ export default function App() {
                     ))}
                   </select>
                 </label>
+              </div>
+
+              <div className="drawer-row pair">
                 <label className="drawer-field field">
                   <span>Branch</span>
                   {renderBranchField(detailBranch, setDetailBranch)}
                 </label>
+                <label className="drawer-field field">
+                  <span>Module</span>
+                  {renderModuleField(detailModule, setDetailModule)}
+                </label>
               </div>
-
-              <label className="drawer-field field">
-                <span>Module</span>
-                {renderModuleField(detailModule, setDetailModule)}
-              </label>
 
               {detailError ? <p className="error">{detailError}</p> : null}
 
@@ -1213,6 +1310,10 @@ export default function App() {
             <div className="drawer-section">
               <h3>Details</h3>
               <dl className="drawer-meta">
+                <div>
+                  <dt>Type</dt>
+                  <dd>{humanizeLabel(selectedCard.type)}</dd>
+                </div>
                 <div>
                   <dt>Branch</dt>
                   <dd>{selectedCard.branch ?? 'Not set'}</dd>
