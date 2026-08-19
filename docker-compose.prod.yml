@@ -33,9 +33,9 @@ services:
     image: caddy:2
     restart: unless-stopped
     # Zero-config automatic HTTPS: no Caddyfile needed. ${DOMAIN} is read from
-    # .env. The caddy image's ENTRYPOINT is already `caddy`, so command must NOT
-    # repeat it.
-    command: reverse-proxy --from ${DOMAIN} --to tboard:8787
+    # .env. The caddy:2 image has an empty ENTRYPOINT (CMD is `caddy run ...`),
+    # so the command must start with `caddy` (verified on a live deploy).
+    command: caddy reverse-proxy --from ${DOMAIN} --to tboard:8787
     ports:
       - "80:80"
       - "443:443"
