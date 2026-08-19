@@ -10,6 +10,7 @@
     "test": "vitest",
     "test:run": "vitest run",
     "mcp:dev": "tsx src/mcp/stdio.ts",
+    "mcp:build": "node scripts/buildMcp.mjs",
     "mcp:smoke": "tsx scripts/mcpSmoke.ts",
     "db:embed": "node scripts/generateEmbeddedMigrations.mjs",
     "dist": "electron-vite build && electron-builder",

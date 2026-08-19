@@ -74,9 +74,12 @@ npm run dist:dir    # fast unpacked build, no installer
 tBoard ships a standalone [Model Context Protocol](https://modelcontextprotocol.io/) stdio server so AI agents can drive your boards. It opens the **same** database as the desktop app by default, so what an agent changes shows up in the app and vice-versa.
 
 ```bash
-npm run mcp:dev     # serve MCP over stdio
+npm run mcp:build   # bundle a node-runnable entrypoint at out/mcp/stdio.js
+npm run mcp:dev     # serve MCP over stdio (dev, via tsx)
 npm run mcp:smoke   # end-to-end self-test against a throwaway DB (CI gate)
 ```
+
+**Connecting to an AI harness** (Claude Desktop, Claude Code, Cursor, VS Code, Windsurf, Cline): run `npm run mcp:build`, then point the harness at `node <repo>/out/mcp/stdio.js`. Copy-paste configs for each are in **[docs/MCP_SETUP.md](docs/MCP_SETUP.md)**.
 
 ### Tools
 
