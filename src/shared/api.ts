@@ -52,6 +52,10 @@ export type CardDto = {
   priority: CardPriority;
   /** Git branch this card is associated with, or null. */
   branch: string | null;
+  /** Repo subfolder (module) this card relates to, or null. */
+  module: string | null;
+  /** Sort key within its (board, status) column. */
+  position: number;
   source: CardSource;
   createdBy: string;
   createdAt: string;
@@ -66,6 +70,7 @@ export type CreateCardInput = {
   status?: CardStatus;
   priority?: CardPriority;
   branch?: string | null;
+  module?: string | null;
   source?: CardSource;
   createdBy?: string;
 };
@@ -76,6 +81,7 @@ export type UpdateCardInput = {
   status?: CardStatus;
   priority?: CardPriority;
   branch?: string | null;
+  module?: string | null;
 };
 
 export type ClipboardWriteResult = {
@@ -92,8 +98,12 @@ export type TBoardApi = {
     list(): Promise<BoardDto[]>;
     add(input: AddBoardInput): Promise<AddBoardResult>;
     remove(id: number): Promise<void>;
+    /** Renames a board (display name only; does not touch the repo). */
+    rename(id: number, name: string): Promise<BoardDto>;
     /** Lists local git branches for a board's repo. */
     branches(boardId: number): Promise<BranchListResult>;
+    /** Lists discovered repo subfolders (modules) for a board's repo. */
+    modules(boardId: number): Promise<string[]>;
     /** Opens a native folder picker; returns the chosen path or null. */
     pickRepoFolder(): Promise<string | null>;
   };
@@ -101,7 +111,11 @@ export type TBoardApi = {
     list(boardId: number): Promise<CardDto[]>;
     create(input: CreateCardInput): Promise<CardDto>;
     update(id: number, input: UpdateCardInput): Promise<CardDto>;
-    move(id: number, status: CardStatus): Promise<CardDto>;
+    /**
+     * Moves a card to `status` and positions it immediately after
+     * `afterCardId` in that column (null/omitted = top of the column).
+     */
+    move(id: number, status: CardStatus, afterCardId?: number | null): Promise<CardDto>;
     remove(id: number): Promise<void>;
   };
   settings: {

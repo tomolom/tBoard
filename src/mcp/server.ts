@@ -104,6 +104,25 @@ export function createTBoardMcpServer(context: TBoardMcpContext): McpServer {
   );
 
   server.registerTool(
+    'tboard_boards_modules',
+    {
+      title: "List a board's repo modules",
+      description: "Lists discovered subfolders (modules) in a board's repository — top-level folders plus one level into monorepo containers (packages/*, apps/*, …). Read-only.",
+      inputSchema: {
+        boardId: z.number().int(),
+      },
+    },
+    (args) =>
+      runLogged('tboard_boards_modules', args, () => {
+        const board = context.boards.getBoard(args.boardId);
+        if (!board) {
+          return [];
+        }
+        return context.listModules(board.repoPath);
+      }),
+  );
+
+  server.registerTool(
     'tboard_cards_list',
     {
       title: 'List cards on a board',
@@ -127,6 +146,7 @@ export function createTBoardMcpServer(context: TBoardMcpContext): McpServer {
         status: z.enum(CARD_STATUSES).optional(),
         priority: z.enum(CARD_PRIORITIES).optional(),
         branch: z.string().nullable().optional(),
+        module: z.string().nullable().optional(),
       },
     },
     (args) => runLogged('tboard_cards_create', args, () => context.cards.createCard({ ...args, source: 'mcp', createdBy: 'mcp' })),
@@ -136,7 +156,7 @@ export function createTBoardMcpServer(context: TBoardMcpContext): McpServer {
     'tboard_cards_update',
     {
       title: 'Update a card',
-      description: 'Updates editable fields of a card (title, description, status, priority, branch). Only provided fields change.',
+      description: 'Updates editable fields of a card (title, description, status, priority, branch, module). Only provided fields change.',
       inputSchema: {
         id: z.number().int(),
         title: z.string().min(1).optional(),
@@ -144,6 +164,7 @@ export function createTBoardMcpServer(context: TBoardMcpContext): McpServer {
         status: z.enum(CARD_STATUSES).optional(),
         priority: z.enum(CARD_PRIORITIES).optional(),
         branch: z.string().nullable().optional(),
+        module: z.string().nullable().optional(),
       },
     },
     (args) => {

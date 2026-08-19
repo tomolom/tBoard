@@ -7,6 +7,7 @@ import { createDatabase } from '../../src/main/db/sqlite';
 import { BoardService } from '../../src/main/services/boardService';
 import { CardService } from '../../src/main/services/cardService';
 import { listBranches } from '../../src/main/services/gitBranches';
+import { listModules } from '../../src/main/services/repoModules';
 import type { TBoardMcpContext } from '../../src/mcp/context';
 import { createTBoardMcpServer } from '../../src/mcp/server';
 import { seedBoard } from './dbFixtures';
@@ -21,6 +22,7 @@ function createInMemoryContext(): TBoardMcpContext {
     boards: new BoardService(db),
     cards: new CardService(db),
     listBranches,
+    listModules,
     close: () => db.close(),
   };
 }
@@ -66,6 +68,7 @@ describe('createTBoardMcpServer protocol round-trip', () => {
           'tboard_boards_add',
           'tboard_boards_branches',
           'tboard_boards_list',
+          'tboard_boards_modules',
           'tboard_cards_create',
           'tboard_cards_list',
           'tboard_cards_move',

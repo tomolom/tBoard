@@ -5,6 +5,9 @@ const CARD_STATUSES: CardStatus[] = ['backlog', 'in_progress', 'in_review', 'don
 const CARD_PRIORITIES: CardPriority[] = ['low', 'normal', 'high', 'urgent'];
 const CARD_SOURCES: CardSource[] = ['manual', 'mcp'];
 
+/** Gap between appended cards; fractional midpoints slot cards between neighbours. */
+const POSITION_STEP = 1024;
+
 const STATUS_ORDER_CASE = `CASE status
   WHEN 'backlog' THEN 0
   WHEN 'in_progress' THEN 1
@@ -33,6 +36,8 @@ type CardRow = {
   status: string;
   priority: string;
   branch: string | null;
+  module: string | null;
+  position: number;
   source: string;
   created_by: string;
   created_at: string;
@@ -49,6 +54,8 @@ function mapCardRow(row: CardRow): CardDto {
     status: row.status as CardStatus,
     priority: row.priority as CardPriority,
     branch: row.branch,
+    module: row.module,
+    position: row.position,
     source: row.source as CardSource,
     createdBy: row.created_by,
     createdAt: row.created_at,
@@ -58,10 +65,14 @@ function mapCardRow(row: CardRow): CardDto {
 }
 
 const CARD_SELECT = `
-  SELECT id, board_id, title, description, status, priority, branch,
+  SELECT id, board_id, title, description, status, priority, branch, module, position,
          source, created_by, created_at, updated_at, completed_at
   FROM cards
 `;
+
+function normalizeOptional(value: string | null | undefined): string | null {
+  return value?.trim() ? value.trim() : null;
+}
 
 export class CardService {
   constructor(private readonly db: SqliteDatabase) {}
@@ -79,6 +90,46 @@ export class CardService {
     if (!board) {
       throw new Error(`Board ${boardId} was not found.`);
     }
+  }
+
+  /** Next position for appending to the end of a (board, status) column. */
+  private nextPosition(boardId: number, status: CardStatus): number {
+    const row = this.db
+      .prepare('SELECT MAX(position) AS maxPos FROM cards WHERE board_id = ? AND status = ?')
+      .get(boardId, status) as { maxPos: number | null };
+    return (row.maxPos ?? 0) + POSITION_STEP;
+  }
+
+  /**
+   * Computes a position that places a card immediately after `afterCardId`
+   * within (board, status). null afterCardId = top of the column. Uses
+   * fractional midpoints so no other rows need renumbering.
+   */
+  private positionAfter(boardId: number, status: CardStatus, afterCardId: number | null, movingId: number): number {
+    const siblings = this.db
+      .prepare(
+        `SELECT id, position FROM cards
+         WHERE board_id = ? AND status = ? AND id != ?
+         ORDER BY position ASC, id ASC`,
+      )
+      .all(boardId, status, movingId) as Array<{ id: number; position: number }>;
+
+    if (afterCardId == null) {
+      // Top of the column: before the first sibling (or a default if empty).
+      const first = siblings[0];
+      return first ? first.position - POSITION_STEP : POSITION_STEP;
+    }
+
+    const index = siblings.findIndex((s) => s.id === afterCardId);
+    if (index === -1) {
+      // Anchor not in this column (stale) — append to the end.
+      const last = siblings[siblings.length - 1];
+      return last ? last.position + POSITION_STEP : POSITION_STEP;
+    }
+
+    const anchor = siblings[index];
+    const next = siblings[index + 1];
+    return next ? (anchor.position + next.position) / 2 : anchor.position + POSITION_STEP;
   }
 
   createCard(input: CreateCardInput): CardDto {
@@ -105,22 +156,24 @@ export class CardService {
       throw new Error(`Invalid card source: ${String(source)}`);
     }
 
-    const branch = input.branch?.trim() ? input.branch.trim() : null;
+    const branch = normalizeOptional(input.branch);
+    const module = normalizeOptional(input.module);
+    const position = this.nextPosition(input.boardId, status);
     const completedAt = status === 'done' ? "datetime('now')" : 'NULL';
 
     const insertResult = this.db
       .prepare(
-        `INSERT INTO cards (board_id, title, description, status, priority, branch, source, created_by, completed_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ${completedAt})`,
+        `INSERT INTO cards (board_id, title, description, status, priority, branch, module, position, source, created_by, completed_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ${completedAt})`,
       )
-      .run(input.boardId, input.title, input.description ?? null, status, priority, branch, source, input.createdBy ?? 'user');
+      .run(input.boardId, input.title, input.description ?? null, status, priority, branch, module, position, source, input.createdBy ?? 'user');
 
     return mapCardRow(this.getCardRowOrThrow(Number(insertResult.lastInsertRowid)));
   }
 
   listCards(boardId: number): CardDto[] {
     const rows = this.db
-      .prepare(`${CARD_SELECT} WHERE board_id = ? ORDER BY ${STATUS_ORDER_CASE}, updated_at DESC, id DESC`)
+      .prepare(`${CARD_SELECT} WHERE board_id = ? ORDER BY ${STATUS_ORDER_CASE}, position ASC, id ASC`)
       .all(boardId) as CardRow[];
     return rows.map(mapCardRow);
   }
@@ -153,9 +206,13 @@ export class CardService {
     }
 
     if (input.branch !== undefined) {
-      const branch = input.branch?.trim() ? input.branch.trim() : null;
       setClauses.push('branch = ?');
-      params.push(branch);
+      params.push(normalizeOptional(input.branch));
+    }
+
+    if (input.module !== undefined) {
+      setClauses.push('module = ?');
+      params.push(normalizeOptional(input.module));
     }
 
     if (input.status !== undefined) {
@@ -183,8 +240,29 @@ export class CardService {
     return mapCardRow(this.getCardRowOrThrow(id));
   }
 
-  moveCard(id: number, status: CardStatus): CardDto {
-    return this.updateCard(id, { status });
+  /**
+   * Moves a card to `status`, positioned immediately after `afterCardId` in that
+   * column (null = top). Handles both cross-column drops and within-column
+   * reordering.
+   */
+  moveCard(id: number, status: CardStatus, afterCardId: number | null = null): CardDto {
+    if (!isCardStatus(status)) {
+      throw new Error(`Invalid card status: ${String(status)}`);
+    }
+    const row = this.getCardRowOrThrow(id);
+    const position = this.positionAfter(row.board_id, status, afterCardId, id);
+
+    const clauses = ['status = ?', 'position = ?', "updated_at = datetime('now')"];
+    const params: unknown[] = [status, position];
+    if (status === 'done') {
+      clauses.push("completed_at = COALESCE(completed_at, datetime('now'))");
+    } else {
+      clauses.push('completed_at = NULL');
+    }
+    params.push(id);
+
+    this.db.prepare(`UPDATE cards SET ${clauses.join(', ')} WHERE id = ?`).run(...params);
+    return mapCardRow(this.getCardRowOrThrow(id));
   }
 
   removeCard(id: number): void {

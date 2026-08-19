@@ -4,6 +4,7 @@ import { runMigrations } from '../main/db/migrations';
 import { BoardService } from '../main/services/boardService';
 import { CardService } from '../main/services/cardService';
 import { listBranches } from '../main/services/gitBranches';
+import { listModules } from '../main/services/repoModules';
 import { resolveDatabasePath } from '../shared/appPaths';
 
 export type TBoardMcpContext = {
@@ -12,6 +13,7 @@ export type TBoardMcpContext = {
   boards: BoardService;
   cards: CardService;
   listBranches: typeof listBranches;
+  listModules: typeof listModules;
   close(): void;
 };
 
@@ -47,6 +49,7 @@ export function createTBoardMcpContext(overrides?: { dbPath?: string }): TBoardM
     boards: new BoardService(db),
     cards: new CardService(db),
     listBranches,
+    listModules,
     close: () => db.close(),
   };
 }

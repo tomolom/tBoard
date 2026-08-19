@@ -26,6 +26,7 @@ const EXPECTED_TOOLS = [
   'tboard_boards_add',
   'tboard_boards_branches',
   'tboard_boards_list',
+  'tboard_boards_modules',
   'tboard_cards_create',
   'tboard_cards_list',
   'tboard_cards_move',

@@ -11,6 +11,7 @@ import type { SqliteDatabase } from './db/connection';
 import { BoardService } from './services/boardService';
 import { CardService } from './services/cardService';
 import { listBranches } from './services/gitBranches';
+import { listModules } from './services/repoModules';
 import { SettingsService } from './services/settingsService';
 
 export function registerIpcHandlers(db: SqliteDatabase): void {
@@ -21,12 +22,20 @@ export function registerIpcHandlers(db: SqliteDatabase): void {
   ipcMain.handle('boards:list', () => boards.listBoards());
   ipcMain.handle('boards:add', (_event, input: AddBoardInput) => boards.addBoard(input));
   ipcMain.handle('boards:remove', (_event, id: number) => boards.removeBoard(id));
+  ipcMain.handle('boards:rename', (_event, id: number, name: string) => boards.renameBoard(id, name));
   ipcMain.handle('boards:branches', (_event, boardId: number) => {
     const board = boards.getBoard(boardId);
     if (!board) {
       return { branches: [], current: null, error: `Board ${boardId} was not found.` };
     }
     return listBranches(board.repoPath);
+  });
+  ipcMain.handle('boards:modules', (_event, boardId: number) => {
+    const board = boards.getBoard(boardId);
+    if (!board) {
+      return [];
+    }
+    return listModules(board.repoPath);
   });
 
   // Opens a native folder picker and returns the chosen path (or null).
@@ -43,7 +52,9 @@ export function registerIpcHandlers(db: SqliteDatabase): void {
   ipcMain.handle('cards:list', (_event, boardId: number) => cards.listCards(boardId));
   ipcMain.handle('cards:create', (_event, input: CreateCardInput) => cards.createCard(input));
   ipcMain.handle('cards:update', (_event, id: number, input: UpdateCardInput) => cards.updateCard(id, input));
-  ipcMain.handle('cards:move', (_event, id: number, status: CardStatus) => cards.moveCard(id, status));
+  ipcMain.handle('cards:move', (_event, id: number, status: CardStatus, afterCardId?: number | null) =>
+    cards.moveCard(id, status, afterCardId ?? null),
+  );
   ipcMain.handle('cards:remove', (_event, id: number) => cards.removeCard(id));
 
   ipcMain.handle('settings:getLastBoardId', () => settings.getLastBoardId());

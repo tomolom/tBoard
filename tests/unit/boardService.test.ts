@@ -61,6 +61,23 @@ describe('BoardService', () => {
     }
   });
 
+  it('renames a board (name only, repo path unchanged)', async () => {
+    const ws = await createTempWorkspace();
+    const db = freshDb();
+    try {
+      const repoPath = await createGitRepo(ws.root, 'app');
+      const service = new BoardService(db);
+      const { board } = await service.addBoard({ repoPath });
+      const renamed = service.renameBoard(board!.id, 'My Project');
+      expect(renamed.name).toBe('My Project');
+      expect(renamed.repoPath).toBe(repoPath);
+      expect(() => service.renameBoard(board!.id, '  ')).toThrow(/name/i);
+    } finally {
+      db.close();
+      await ws.cleanup();
+    }
+  });
+
   it('removes a board', async () => {
     const ws = await createTempWorkspace();
     const db = freshDb();

@@ -68,6 +68,20 @@ export class BoardService {
     return { board, error: null };
   }
 
+  /** Renames a board (display name only; the repo path is unchanged). */
+  renameBoard(id: number, name: string): BoardDto {
+    const trimmed = name?.trim();
+    if (!trimmed) {
+      throw new Error('Board name is required.');
+    }
+    const board = this.getBoard(id);
+    if (!board) {
+      throw new Error(`Board ${id} was not found.`);
+    }
+    this.db.prepare("UPDATE boards SET name = ?, updated_at = datetime('now') WHERE id = ?").run(trimmed, id);
+    return this.getBoard(id)!;
+  }
+
   removeBoard(id: number): void {
     // Cards cascade-delete via the board_id foreign key.
     this.db.prepare('DELETE FROM boards WHERE id = ?').run(id);
