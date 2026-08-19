@@ -4,6 +4,15 @@ tBoard ships a standalone [Model Context Protocol](https://modelcontextprotocol.
 
 By default it opens the **same** SQLite database as the desktop app (`<userData>/tboard.sqlite`), so anything an agent changes shows up in the app and vice-versa.
 
+**Local or remote board.** By default the MCP server drives your **local** board. To point it at a **hosted** board instead (see [SELF_HOSTING.md](SELF_HOSTING.md)), set two environment variables on the MCP server and it talks to that server over its authenticated HTTP API:
+
+| Variable | Purpose |
+| --- | --- |
+| `TBOARD_REMOTE_URL` | The hosted board origin, e.g. `https://board.example.com`. When set, the MCP server runs in remote mode. |
+| `TBOARD_REMOTE_PASSWORD` | The board's login password (used to authenticate; sent only to your server over HTTPS). |
+
+In remote mode the same 8 tools operate on the hosted board; branch/module discovery returns whatever the server reports (free-text there, since the repos aren't on the VPS). Omit both variables for local mode. Add them to the `env`/`environment` block of any harness config below.
+
 ---
 
 ## 1. Build the entrypoint (one time)

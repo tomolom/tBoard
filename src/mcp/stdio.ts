@@ -1,11 +1,12 @@
 #!/usr/bin/env node
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 
-import { createTBoardMcpContext } from './context';
+import { createMcpContextFromEnv } from './context';
 import { createTBoardMcpServer } from './server';
 
 async function main(): Promise<void> {
-  const context = createTBoardMcpContext();
+  // Local SQLite by default; connects to a hosted board if TBOARD_REMOTE_URL is set.
+  const context = await createMcpContextFromEnv();
   const server = createTBoardMcpServer(context);
   const transport = new StdioServerTransport();
 

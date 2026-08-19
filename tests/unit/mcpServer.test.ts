@@ -4,27 +4,16 @@ import { describe, expect, it } from 'vitest';
 
 import { runMigrations } from '../../src/main/db/migrations';
 import { createDatabase } from '../../src/main/db/sqlite';
-import { BoardService } from '../../src/main/services/boardService';
-import { CardService } from '../../src/main/services/cardService';
-import { listBranches } from '../../src/main/services/gitBranches';
-import { listModules } from '../../src/main/services/repoModules';
-import type { TBoardMcpContext } from '../../src/mcp/context';
+import type { SqliteDatabase } from '../../src/main/db/sqlite';
+import { createLocalMcpContext, type TBoardMcpContext } from '../../src/mcp/context';
 import { createTBoardMcpServer } from '../../src/mcp/server';
 import { seedBoard } from './dbFixtures';
 import { createGitRepo, createTempWorkspace } from './testFixtures';
 
-function createInMemoryContext(): TBoardMcpContext {
+function createInMemoryContext(): TBoardMcpContext & { db: SqliteDatabase } {
   const db = createDatabase(':memory:');
   runMigrations(db);
-  return {
-    db,
-    dbPath: ':memory:',
-    boards: new BoardService(db),
-    cards: new CardService(db),
-    listBranches,
-    listModules,
-    close: () => db.close(),
-  };
+  return { ...createLocalMcpContext(db), db };
 }
 
 type TextContent = { type: string; text?: string };

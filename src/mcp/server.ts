@@ -4,7 +4,6 @@ import { z } from 'zod';
 
 import type { CardPriority, CardStatus, CardType } from '../shared/api';
 import type { TBoardMcpContext } from './context';
-import { recordMcpOutcome, recordMcpReceived } from './mcpEvents';
 
 const CARD_STATUSES = [
   'backlog',
@@ -39,33 +38,37 @@ function jsonResource(uri: string, value: unknown): ReadResourceResult {
  */
 export function createTBoardMcpServer(context: TBoardMcpContext): McpServer {
   const server = new McpServer({ name: 'tboard-mcp', version: '0.2.0' });
+  const { backend, logger } = context;
 
   const runLogged = (operation: string, request: unknown, produce: () => unknown | Promise<unknown>): Promise<CallToolResult> => {
-    const eventId = recordMcpReceived(context.db, operation, request);
+    const eventId = logger.received(operation, request);
     return Promise.resolve()
       .then(() => produce())
       .then((value) => {
         const result = jsonResult(value);
-        recordMcpOutcome(context.db, eventId, 'applied', result);
+        logger.outcome(eventId, 'applied', result);
         return result;
       })
       .catch((error) => {
         const result = errorResult(error);
-        recordMcpOutcome(context.db, eventId, 'failed', result);
+        logger.outcome(eventId, 'failed', result);
         return result;
       });
   };
 
-  const runResource = (operation: string, uri: string, produce: () => unknown): ReadResourceResult => {
-    const eventId = recordMcpReceived(context.db, operation, { uri });
-    try {
-      const result = jsonResource(uri, produce());
-      recordMcpOutcome(context.db, eventId, 'applied', { uri });
-      return result;
-    } catch (error) {
-      recordMcpOutcome(context.db, eventId, 'failed', { error: error instanceof Error ? error.message : String(error) });
-      throw error;
-    }
+  const runResource = (operation: string, uri: string, produce: () => unknown | Promise<unknown>): Promise<ReadResourceResult> => {
+    const eventId = logger.received(operation, { uri });
+    return Promise.resolve()
+      .then(() => produce())
+      .then((value) => {
+        const result = jsonResource(uri, value);
+        logger.outcome(eventId, 'applied', { uri });
+        return result;
+      })
+      .catch((error) => {
+        logger.outcome(eventId, 'failed', { error: error instanceof Error ? error.message : String(error) });
+        throw error;
+      });
   };
 
   server.registerTool(
@@ -75,7 +78,7 @@ export function createTBoardMcpServer(context: TBoardMcpContext): McpServer {
       description: 'Lists all tBoard boards. Each board is a git repository the user added.',
       inputSchema: {},
     },
-    () => runLogged('tboard_boards_list', {}, () => context.boards.listBoards()),
+    () => runLogged('tboard_boards_list', {}, () => backend.listBoards()),
   );
 
   server.registerTool(
@@ -89,7 +92,7 @@ export function createTBoardMcpServer(context: TBoardMcpContext): McpServer {
         name: z.string().optional(),
       },
     },
-    (args) => runLogged('tboard_boards_add', args, () => context.boards.addBoard(args)),
+    (args) => runLogged('tboard_boards_add', args, () => backend.addBoard(args)),
   );
 
   server.registerTool(
@@ -102,13 +105,7 @@ export function createTBoardMcpServer(context: TBoardMcpContext): McpServer {
       },
     },
     (args) =>
-      runLogged('tboard_boards_branches', args, () => {
-        const board = context.boards.getBoard(args.boardId);
-        if (!board) {
-          return { branches: [], current: null, error: `Board ${args.boardId} was not found.` };
-        }
-        return context.listBranches(board.repoPath);
-      }),
+      runLogged('tboard_boards_branches', args, () => backend.boardBranches(args.boardId)),
   );
 
   server.registerTool(
@@ -121,13 +118,7 @@ export function createTBoardMcpServer(context: TBoardMcpContext): McpServer {
       },
     },
     (args) =>
-      runLogged('tboard_boards_modules', args, () => {
-        const board = context.boards.getBoard(args.boardId);
-        if (!board) {
-          return [];
-        }
-        return context.listModules(board.repoPath);
-      }),
+      runLogged('tboard_boards_modules', args, () => backend.boardModules(args.boardId)),
   );
 
   server.registerTool(
@@ -139,7 +130,7 @@ export function createTBoardMcpServer(context: TBoardMcpContext): McpServer {
         boardId: z.number().int(),
       },
     },
-    (args) => runLogged('tboard_cards_list', args, () => context.cards.listCards(args.boardId)),
+    (args) => runLogged('tboard_cards_list', args, () => backend.listCards(args.boardId)),
   );
 
   server.registerTool(
@@ -158,7 +149,7 @@ export function createTBoardMcpServer(context: TBoardMcpContext): McpServer {
         module: z.string().nullable().optional(),
       },
     },
-    (args) => runLogged('tboard_cards_create', args, () => context.cards.createCard({ ...args, source: 'mcp', createdBy: 'mcp' })),
+    (args) => runLogged('tboard_cards_create', args, () => backend.createCard(args)),
   );
 
   server.registerTool(
@@ -179,7 +170,7 @@ export function createTBoardMcpServer(context: TBoardMcpContext): McpServer {
     },
     (args) => {
       const { id, ...input } = args;
-      return runLogged('tboard_cards_update', args, () => context.cards.updateCard(id, input));
+      return runLogged('tboard_cards_update', args, () => backend.updateCard(id, input));
     },
   );
 
@@ -193,7 +184,7 @@ export function createTBoardMcpServer(context: TBoardMcpContext): McpServer {
         status: z.enum(CARD_STATUSES),
       },
     },
-    (args) => runLogged('tboard_cards_move', args, () => context.cards.moveCard(args.id, args.status)),
+    (args) => runLogged('tboard_cards_move', args, () => backend.moveCard(args.id, args.status)),
   );
 
   server.registerResource(
@@ -204,7 +195,7 @@ export function createTBoardMcpServer(context: TBoardMcpContext): McpServer {
       description: 'All tBoard boards (git repos) as JSON.',
       mimeType: 'application/json',
     },
-    (uri) => runResource('resource:tboard://boards', uri.href, () => context.boards.listBoards()),
+    (uri) => runResource('resource:tboard://boards', uri.href, () => backend.listBoards()),
   );
 
   return server;
