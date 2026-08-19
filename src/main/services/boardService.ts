@@ -43,12 +43,16 @@ export class BoardService {
    * Adds a board for a git repo. Validates the path is a git repository and is
    * not already added. Never throws — validation failures return an `error`.
    */
-  async addBoard(input: AddBoardInput): Promise<AddBoardResult> {
+  async addBoard(input: AddBoardInput, options: { validateRepo?: boolean } = {}): Promise<AddBoardResult> {
+    const validateRepo = options.validateRepo ?? true;
     const repoPath = input.repoPath?.trim();
     if (!repoPath) {
       return { board: null, error: 'A repository path is required.' };
     }
-    if (!(await isGitRepo(repoPath))) {
+    // On the hosted server the repos aren't present, so repoPath is an opaque
+    // label and the git-repo check is skipped by the caller. The local app and
+    // MCP server keep validating.
+    if (validateRepo && !(await isGitRepo(repoPath))) {
       return { board: null, error: `Not a git repository: ${repoPath}` };
     }
 
