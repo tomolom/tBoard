@@ -1,12 +1,16 @@
-// One-time migration: push your LOCAL board (boards + cards) to a remote tBoard
-// web server over its authenticated API.
+// Push your LOCAL board (boards + cards) to a remote tBoard web server over its
+// authenticated API. Two modes:
 //
 //   npm run server:push -- https://board.example.com
-//   (password via TBOARD_PUSH_PASSWORD env, or prompted on stdin)
+//       SEED (default): create any missing boards and APPEND all local cards.
+//       Safe for a first push to an empty remote; re-running DUPLICATES cards.
 //
-// Idempotent by repo_path: a board that already exists remotely is reused, not
-// duplicated. Cards are appended per column in their current order. Timestamps
-// and source are set by the server (this is a seed, not a byte-for-byte clone).
+//   npm run server:push -- https://board.example.com --replace
+//       MIRROR: delete every existing remote board first, then push fresh, so
+//       the remote ends up exactly matching local. Idempotent — safe to re-run.
+//       Use this to re-sync after local changes. Destroys remote-only edits.
+//
+// Password via TBOARD_PUSH_PASSWORD env, or prompted on stdin.
 import { createInterface } from 'node:readline';
 
 import { createDatabase, getRuntimeDatabasePath } from '../src/main/db/connection.ts';
@@ -32,11 +36,14 @@ async function prompt(question) {
 }
 
 async function main() {
-  const origin = (process.argv[2] || '').replace(/\/$/, '');
-  if (!origin || !/^https?:\/\//.test(origin)) {
-    console.error('Usage: npm run server:push -- https://board.example.com');
+  const args = process.argv.slice(2);
+  const replace = args.includes('--replace');
+  const origin = (args.find((a) => /^https?:\/\//.test(a)) || '').replace(/\/$/, '');
+  if (!origin) {
+    console.error('Usage: npm run server:push -- https://board.example.com [--replace]');
     process.exit(1);
   }
+  console.log(replace ? 'Mode: MIRROR (--replace) — remote will be wiped, then matched to local.' : 'Mode: SEED — appends local cards (re-running duplicates; use --replace to mirror).');
   const password = process.env.TBOARD_PUSH_PASSWORD || (await prompt('Remote board password: '));
   if (!password) {
     console.error('No password provided.');
@@ -74,7 +81,17 @@ async function main() {
   const authHeaders = { 'content-type': 'application/json', origin, cookie, 'x-csrf-token': csrf };
   console.log('Authenticated to remote.');
 
-  // Map existing remote boards by repo_path for idempotency.
+  // In mirror mode, delete every existing remote board first (cards cascade),
+  // so the push produces an exact copy with no duplicates.
+  if (replace) {
+    const existing = await (await fetch(`${origin}/api/boards`, { headers: { cookie } })).json();
+    for (const b of existing) {
+      const res = await fetch(`${origin}/api/boards/${b.id}`, { method: 'DELETE', headers: authHeaders });
+      console.log(`  - removed remote board "${b.name}" (#${b.id}): ${res.ok ? 'ok' : 'FAILED ' + res.status}`);
+    }
+  }
+
+  // Map existing remote boards by repo_path for idempotency (empty after wipe).
   const remoteBoards = await (await fetch(`${origin}/api/boards`, { headers: { cookie } })).json();
   const remoteByPath = new Map(remoteBoards.map((b) => [b.repoPath, b.id]));
 

@@ -149,15 +149,12 @@ const noopLogger: McpLogger = {
 };
 
 /**
- * Resolves the SQLite database the local MCP server opens. Defaults to the SAME
+ * Resolves the SQLite database the local MCP server opens. Delegates to the
+ * shared resolver, which honors `TBOARD_DB_PATH` and otherwise uses the same
  * per-user location the desktop app uses, so an agent and the app share one
- * board. `TBOARD_DB_PATH` overrides for tests or an isolated database.
+ * board by default.
  */
 export function resolveDbPath(): string {
-  const override = process.env.TBOARD_DB_PATH;
-  if (override && override.trim().length > 0) {
-    return override;
-  }
   return resolveDatabasePath();
 }
 

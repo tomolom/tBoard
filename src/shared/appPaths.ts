@@ -40,7 +40,17 @@ export function resolveUserDataDir(): string {
   return path.join(base, APP_DIR_NAME);
 }
 
-/** The canonical SQLite database path shared by the app and the MCP server. */
+/**
+ * The canonical SQLite database path shared by the app, the web server, and the
+ * MCP server. `TBOARD_DB_PATH` overrides it everywhere (tests, and crucially the
+ * Docker/systemd deploy, where the DB MUST live on a mounted volume like
+ * /data/tboard.sqlite — otherwise it is written inside the container and wiped
+ * on every redeploy). With no override it falls back to the per-user data dir.
+ */
 export function resolveDatabasePath(): string {
+  const override = process.env.TBOARD_DB_PATH;
+  if (override && override.trim().length > 0) {
+    return override.trim();
+  }
   return path.join(resolveUserDataDir(), 'tboard.sqlite');
 }

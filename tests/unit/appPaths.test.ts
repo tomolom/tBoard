@@ -22,9 +22,17 @@ describe('shared app paths', () => {
     expect(APP_DIR_NAME).toBe('tboard');
   });
 
-  it('places the database under the user-data dir', () => {
+  it('places the database under the user-data dir when unset', () => {
+    delete process.env.TBOARD_DB_PATH;
     const dir = resolveUserDataDir();
     expect(resolveDatabasePath()).toBe(path.join(dir, 'tboard.sqlite'));
+  });
+
+  it('honors TBOARD_DB_PATH for the shared/server database path (Docker volume)', () => {
+    // The web server uses resolveDatabasePath(); in Docker the DB must land on
+    // the mounted volume, not inside the container (else it is wiped on redeploy).
+    process.env.TBOARD_DB_PATH = path.join('/data', 'tboard.sqlite');
+    expect(resolveDatabasePath()).toBe(path.join('/data', 'tboard.sqlite'));
   });
 
   it('unifies the MCP default database with the app database path', () => {
@@ -34,9 +42,11 @@ describe('shared app paths', () => {
     expect(resolveDbPath()).toBe(resolveDatabasePath());
   });
 
-  it('still lets TBOARD_DB_PATH override the MCP database location', () => {
+  it('lets TBOARD_DB_PATH override, and app/server/MCP all agree on it', () => {
     process.env.TBOARD_DB_PATH = path.join('/tmp', 'isolated', 'board.sqlite');
     expect(resolveDbPath()).toBe(path.join('/tmp', 'isolated', 'board.sqlite'));
-    expect(resolveDbPath()).not.toBe(resolveDatabasePath());
+    // The override now applies to the shared/server path too, so every
+    // entrypoint opens the same file (the Docker-volume fix).
+    expect(resolveDbPath()).toBe(resolveDatabasePath());
   });
 });
