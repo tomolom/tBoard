@@ -137,11 +137,12 @@ export function createTBoardMcpServer(context: TBoardMcpContext): McpServer {
     'tboard_cards_create',
     {
       title: 'Create a card',
-      description: 'Creates a card on a board, optionally associated with a git branch and a repo module. Type is task (default), bug, or feature.',
+      description: 'Creates a card on a board, optionally associated with a git branch and a repo module. Type is task (default), bug, or feature. `fix` holds resolution notes separate from the description.',
       inputSchema: {
         boardId: z.number().int(),
         title: z.string().min(1),
         description: z.string().nullable().optional(),
+        fix: z.string().nullable().optional(),
         type: z.enum(CARD_TYPES).optional(),
         status: z.enum(CARD_STATUSES).optional(),
         priority: z.enum(CARD_PRIORITIES).optional(),
@@ -156,11 +157,12 @@ export function createTBoardMcpServer(context: TBoardMcpContext): McpServer {
     'tboard_cards_update',
     {
       title: 'Update a card',
-      description: 'Updates editable fields of a card (title, description, type, status, priority, branch, module). Only provided fields change.',
+      description: 'Updates editable fields of a card (title, description, fix, type, status, priority, branch, module). Only provided fields change.',
       inputSchema: {
         id: z.number().int(),
         title: z.string().min(1).optional(),
         description: z.string().nullable().optional(),
+        fix: z.string().nullable().optional(),
         type: z.enum(CARD_TYPES).optional(),
         status: z.enum(CARD_STATUSES).optional(),
         priority: z.enum(CARD_PRIORITIES).optional(),

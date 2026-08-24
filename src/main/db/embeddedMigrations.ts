@@ -41,5 +41,10 @@ export const EMBEDDED_MIGRATIONS = [
     "version": 8,
     "name": "008_attachments.sql",
     "sql": "-- Migration 008: file attachments on cards.\n--\n-- Files are stored on disk under <dir(TBOARD_DB_PATH)>/attachments/ using a\n-- RANDOM stored_name (never the user-supplied name), so the DB row is the only\n-- link between a display name and the bytes on disk. Deleting a card cascades\n-- its attachment rows; the files are unlinked by application code.\n\nCREATE TABLE IF NOT EXISTS attachments (\n  id INTEGER PRIMARY KEY AUTOINCREMENT,\n  card_id INTEGER NOT NULL REFERENCES cards(id) ON DELETE CASCADE,\n  -- Display name only. NEVER used to build a filesystem path.\n  original_name TEXT NOT NULL,\n  -- Actual on-disk filename: 64 hex chars from crypto.randomBytes(32).\n  stored_name TEXT NOT NULL UNIQUE,\n  mime_type TEXT NOT NULL DEFAULT 'application/octet-stream',\n  size_bytes INTEGER NOT NULL DEFAULT 0,\n  created_at TEXT NOT NULL DEFAULT (datetime('now')),\n  created_by TEXT NOT NULL DEFAULT 'user'\n);\n\nCREATE INDEX IF NOT EXISTS idx_attachments_card ON attachments(card_id);\n"
+  },
+  {
+    "version": 9,
+    "name": "009_card_fix.sql",
+    "sql": "-- Migration 009: a separate \"fix\" field on cards.\n--\n-- Bug cards often record the resolution/fix separately from the bug\n-- description. Storing it in its own column means the UI can show it in a\n-- dedicated box instead of appending it to the bottom of the description.\n-- Additive, nullable column — no table rebuild, existing cards get NULL.\n\nALTER TABLE cards ADD COLUMN fix TEXT;\n"
   }
 ] as const;

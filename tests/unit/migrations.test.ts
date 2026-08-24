@@ -115,6 +115,28 @@ describe('database migrations', () => {
     }
   });
 
+  it('migration 009 adds a nullable fix column (existing cards -> NULL)', () => {
+    const upTo8 = EMBEDDED_MIGRATIONS.filter((m) => m.version <= 8);
+    const db = createDatabase(':memory:');
+    try {
+      runMigrations(db, upTo8);
+      const boardId = db.prepare("INSERT INTO boards (name, repo_path) VALUES ('a', '/r')").run().lastInsertRowid;
+      db.prepare("INSERT INTO cards (board_id, title) VALUES (?, 'existing')").run(boardId);
+
+      runMigrations(db, EMBEDDED_MIGRATIONS);
+
+      // Existing card has a NULL fix; new cards can store one.
+      const existing = db.prepare("SELECT fix FROM cards WHERE title = 'existing'").get() as { fix: string | null };
+      expect(existing.fix).toBeNull();
+      db.prepare("INSERT INTO cards (board_id, title, fix) VALUES (?, 'fixed', 'reverted the bad commit')").run(boardId);
+      const fixed = db.prepare("SELECT fix FROM cards WHERE title = 'fixed'").get() as { fix: string | null };
+      expect(fixed.fix).toBe('reverted the bad commit');
+      expect(db.pragma('foreign_key_check') as unknown[]).toHaveLength(0);
+    } finally {
+      db.close();
+    }
+  });
+
   it('is idempotent when run repeatedly', () => {
     const db = createDatabase(':memory:');
     try {

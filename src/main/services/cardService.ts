@@ -43,6 +43,7 @@ type CardRow = {
   board_id: number;
   title: string;
   description: string | null;
+  fix: string | null;
   type: string;
   status: string;
   priority: string;
@@ -62,6 +63,7 @@ function mapCardRow(row: CardRow): CardDto {
     boardId: row.board_id,
     title: row.title,
     description: row.description,
+    fix: row.fix,
     type: row.type as CardType,
     status: row.status as CardStatus,
     priority: row.priority as CardPriority,
@@ -77,7 +79,7 @@ function mapCardRow(row: CardRow): CardDto {
 }
 
 const CARD_SELECT = `
-  SELECT id, board_id, title, description, type, status, priority, branch, module, position,
+  SELECT id, board_id, title, description, fix, type, status, priority, branch, module, position,
          source, created_by, created_at, updated_at, completed_at
   FROM cards
 `;
@@ -180,10 +182,10 @@ export class CardService {
 
     const insertResult = this.db
       .prepare(
-        `INSERT INTO cards (board_id, title, description, type, status, priority, branch, module, position, source, created_by, completed_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ${completedAt})`,
+        `INSERT INTO cards (board_id, title, description, fix, type, status, priority, branch, module, position, source, created_by, completed_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ${completedAt})`,
       )
-      .run(input.boardId, input.title, input.description ?? null, type, status, priority, branch, module, position, source, input.createdBy ?? 'user');
+      .run(input.boardId, input.title, input.description ?? null, input.fix ?? null, type, status, priority, branch, module, position, source, input.createdBy ?? 'user');
 
     return mapCardRow(this.getCardRowOrThrow(Number(insertResult.lastInsertRowid)));
   }
@@ -212,6 +214,11 @@ export class CardService {
     if (input.description !== undefined) {
       setClauses.push('description = ?');
       params.push(input.description);
+    }
+
+    if (input.fix !== undefined) {
+      setClauses.push('fix = ?');
+      params.push(input.fix);
     }
 
     if (input.type !== undefined) {

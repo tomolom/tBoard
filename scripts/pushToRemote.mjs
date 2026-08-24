@@ -128,6 +128,7 @@ async function main() {
           boardId: remoteId,
           title: card.title,
           description: card.description,
+          fix: card.fix,
           type: card.type,
           status: card.status,
           priority: card.priority,

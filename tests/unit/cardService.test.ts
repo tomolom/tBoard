@@ -32,6 +32,27 @@ describe('CardService', () => {
     }
   });
 
+  it('stores and updates a separate fix field, defaulting to null', () => {
+    const db = freshDb();
+    try {
+      const { boardId } = seedBoard(db, { repoPath: '/repos/app' });
+      const service = new CardService(db);
+      const card = service.createCard({ boardId, title: 'Bug', description: 'it crashes', fix: 'null-checked the input' });
+      expect(card.description).toBe('it crashes');
+      expect(card.fix).toBe('null-checked the input');
+
+      const plain = service.createCard({ boardId, title: 'No fix yet' });
+      expect(plain.fix).toBeNull();
+
+      const updated = service.updateCard(plain.id, { fix: 'shipped the patch' });
+      expect(updated.fix).toBe('shipped the patch');
+      // Description untouched by a fix-only update.
+      expect(updated.description).toBeNull();
+    } finally {
+      db.close();
+    }
+  });
+
   it('normalizes an empty branch to null', () => {
     const db = freshDb();
     try {

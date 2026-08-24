@@ -245,6 +245,7 @@ export default function App() {
 
   const [newTitle, setNewTitle] = useState('');
   const [newDescription, setNewDescription] = useState('');
+  const [newFix, setNewFix] = useState('');
   const [newBranch, setNewBranch] = useState('');
   // Once the user picks a branch for new cards, auto-refresh stops overriding it.
   const [composerBranchTouched, setComposerBranchTouched] = useState(false);
@@ -268,6 +269,7 @@ export default function App() {
   const [selectedCardId, setSelectedCardId] = useState<number | null>(null);
   const [detailTitle, setDetailTitle] = useState('');
   const [detailDescription, setDetailDescription] = useState('');
+  const [detailFix, setDetailFix] = useState('');
   const [detailStatus, setDetailStatus] = useState<CardStatus>('backlog');
   const [detailPriority, setDetailPriority] = useState<CardPriority>('normal');
   const [detailBranch, setDetailBranch] = useState('');
@@ -428,6 +430,7 @@ export default function App() {
     setComposerBranchTouched(false);
     setNewModule('');
     setNewDescription('');
+    setNewFix('');
 
     // Every state write is guarded: switching boards quickly must not let a
     // slower earlier response overwrite the newer board's data.
@@ -772,10 +775,12 @@ export default function App() {
       const branch = newBranch.trim();
       const module = newModule.trim();
       const description = newDescription.trim();
+      const fix = newFix.trim();
       await window.tBoard.cards.create({
         boardId: selectedBoardId,
         title,
         description: description === '' ? null : description,
+        fix: fix === '' ? null : fix,
         type: newType,
         priority: newPriority,
         branch: branch === '' ? null : branch,
@@ -783,6 +788,7 @@ export default function App() {
       });
       setNewTitle('');
       setNewDescription('');
+      setNewFix('');
       setComposerOpen(false);
       await refreshCards(selectedBoardId);
     } catch (createError) {
@@ -900,6 +906,7 @@ export default function App() {
     setSelectedCardId(card.id);
     setDetailTitle(card.title);
     setDetailDescription(card.description ?? '');
+    setDetailFix(card.fix ?? '');
     setDetailStatus(card.status);
     setDetailPriority(card.priority);
     setDetailBranch(card.branch ?? '');
@@ -925,6 +932,7 @@ export default function App() {
     selectedCard !== null &&
     (detailTitle !== selectedCard.title ||
       detailDescription !== (selectedCard.description ?? '') ||
+      detailFix !== (selectedCard.fix ?? '') ||
       detailStatus !== selectedCard.status ||
       detailPriority !== selectedCard.priority ||
       detailBranch !== (selectedCard.branch ?? '') ||
@@ -946,9 +954,11 @@ export default function App() {
       const branch = detailBranch.trim();
       const module = detailModule.trim();
       const description = detailDescription.trim();
+      const fix = detailFix.trim();
       await window.tBoard.cards.update(selectedCard.id, {
         title,
         description: description === '' ? null : description,
+        fix: fix === '' ? null : fix,
         type: detailType,
         status: detailStatus,
         priority: detailPriority,
@@ -1504,6 +1514,16 @@ export default function App() {
             placeholder="Description (optional)"
           />
         </label>
+        <label className="field fix-field">
+          <span>Fix</span>
+          <textarea
+            className="composer-description"
+            value={newFix}
+            onChange={(event) => setNewFix(event.target.value)}
+            rows={2}
+            placeholder="How it was fixed (optional)"
+          />
+        </label>
         <div className="composer-row">
           <label className="field">
             <span>Type</span>
@@ -1663,6 +1683,12 @@ export default function App() {
                       <TypeBadge type={card.type} />
                       {card.branch ? <BranchBadge branch={card.branch} /> : null}
                       {card.module ? <ModuleBadge module={card.module} /> : null}
+                      {card.fix?.trim() ? (
+                        <small className="meta-badge fix-chip" title="Has fix notes">
+                          <span aria-hidden="true">&#10003;</span>
+                          Fix
+                        </small>
+                      ) : null}
                       <small className={`priority-${card.priority}`}>{humanizeLabel(card.priority)}</small>
                       {card.source === 'mcp' ? <small className="source-mcp">MCP</small> : null}
                     </div>
@@ -1725,7 +1751,9 @@ export default function App() {
               <p>
                 {humanizeLabel(selectedCard.status)} &middot; updated {formatTimestamp(selectedCard.updatedAt)}
               </p>
-              <h2 id="card-drawer-title">{selectedCard.title}</h2>
+              <h2 id="card-drawer-title">
+                {selectedCard.title} <span className="card-id">#{selectedCard.id}</span>
+              </h2>
               <div className="badges">
                 <TypeBadge type={selectedCard.type} />
                 {selectedCard.branch ? <BranchBadge branch={selectedCard.branch} /> : null}
@@ -1757,6 +1785,15 @@ export default function App() {
                   onChange={(event) => setDetailDescription(event.target.value)}
                   rows={5}
                   placeholder="Optional notes"
+                />
+              </label>
+              <label className="drawer-field field fix-field">
+                <span>Fix</span>
+                <textarea
+                  value={detailFix}
+                  onChange={(event) => setDetailFix(event.target.value)}
+                  rows={4}
+                  placeholder="How it was fixed / resolution notes"
                 />
               </label>
               <div className="drawer-row">

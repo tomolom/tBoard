@@ -51,6 +51,8 @@ export type CardDto = {
   boardId: number;
   title: string;
   description: string | null;
+  /** Resolution / fix notes, kept separate from the description. */
+  fix: string | null;
   type: CardType;
   status: CardStatus;
   priority: CardPriority;
@@ -71,6 +73,7 @@ export type CreateCardInput = {
   boardId: number;
   title: string;
   description?: string | null;
+  fix?: string | null;
   type?: CardType;
   status?: CardStatus;
   priority?: CardPriority;
@@ -83,6 +86,7 @@ export type CreateCardInput = {
 export type UpdateCardInput = {
   title?: string;
   description?: string | null;
+  fix?: string | null;
   type?: CardType;
   status?: CardStatus;
   priority?: CardPriority;
