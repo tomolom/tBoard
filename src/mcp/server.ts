@@ -10,7 +10,8 @@ const CARD_STATUSES = [
   'developing',
   'untested',
   'needs_fix',
-  'approved',
+  'agent_approved',
+  'human_approved',
   'released',
 ] as const satisfies readonly CardStatus[];
 const CARD_TYPES = ['task', 'bug', 'feature'] as const satisfies readonly CardType[];
@@ -180,7 +181,7 @@ export function createTBoardMcpServer(context: TBoardMcpContext): McpServer {
     'tboard_cards_move',
     {
       title: 'Move a card',
-      description: 'Moves a card to a new status (backlog, developing, untested, needs_fix, approved, released).',
+      description: 'Moves a card to a new status (backlog, developing, untested, needs_fix, agent_approved, human_approved, released).',
       inputSchema: {
         id: z.number().int(),
         status: z.enum(CARD_STATUSES),

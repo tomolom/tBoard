@@ -96,7 +96,9 @@ describe('database migrations', () => {
         insert.run(boardId, `c-${status}`, status);
       }
 
-      runMigrations(db, EMBEDDED_MIGRATIONS);
+      // Scope to <=6 so this test validates migration 006 in isolation (a later
+      // migration splits 'approved', which would change the valid set below).
+      runMigrations(db, EMBEDDED_MIGRATIONS.filter((m) => m.version <= 6));
 
       const statusOf = (title: string) =>
         (db.prepare('SELECT status FROM cards WHERE title = ?').get(title) as { status: string }).status;
@@ -109,6 +111,34 @@ describe('database migrations', () => {
       expect(() => insert.run(boardId, 'nf', 'needs_fix')).not.toThrow();
       expect(() => insert.run(boardId, 'ap', 'approved')).not.toThrow();
       expect(() => insert.run(boardId, 'x', 'in_progress')).toThrow();
+      expect(db.pragma('foreign_key_check') as unknown[]).toHaveLength(0);
+    } finally {
+      db.close();
+    }
+  });
+
+  it('migration 010 splits approved -> agent_approved/human_approved (existing -> human_approved)', () => {
+    const upTo9 = EMBEDDED_MIGRATIONS.filter((m) => m.version <= 9);
+    const db = createDatabase(':memory:');
+    try {
+      runMigrations(db, upTo9);
+      const boardId = db.prepare("INSERT INTO boards (name, repo_path) VALUES ('a', '/r')").run().lastInsertRowid;
+      const insert = db.prepare('INSERT INTO cards (board_id, title, status) VALUES (?, ?, ?)');
+      insert.run(boardId, 'was-approved', 'approved');
+      insert.run(boardId, 'was-released', 'released');
+
+      runMigrations(db, EMBEDDED_MIGRATIONS);
+
+      const statusOf = (title: string) =>
+        (db.prepare('SELECT status FROM cards WHERE title = ?').get(title) as { status: string }).status;
+      // Existing Approved cards land in Human Approved; others are untouched.
+      expect(statusOf('was-approved')).toBe('human_approved');
+      expect(statusOf('was-released')).toBe('released');
+
+      // Both new statuses accepted, the old single 'approved' now rejected, FK intact.
+      expect(() => insert.run(boardId, 'aa', 'agent_approved')).not.toThrow();
+      expect(() => insert.run(boardId, 'ha', 'human_approved')).not.toThrow();
+      expect(() => insert.run(boardId, 'old', 'approved')).toThrow();
       expect(db.pragma('foreign_key_check') as unknown[]).toHaveLength(0);
     } finally {
       db.close();

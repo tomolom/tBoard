@@ -20,7 +20,7 @@ declare global {
   }
 }
 
-const STATUSES: CardStatus[] = ['backlog', 'developing', 'untested', 'needs_fix', 'approved', 'released'];
+const STATUSES: CardStatus[] = ['backlog', 'developing', 'untested', 'needs_fix', 'agent_approved', 'human_approved', 'released'];
 const PRIORITIES: CardPriority[] = ['low', 'normal', 'high', 'urgent'];
 const CARD_TYPES: CardType[] = ['task', 'bug', 'feature'];
 

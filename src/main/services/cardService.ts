@@ -1,7 +1,7 @@
 import type { CardDto, CardPriority, CardSource, CardStatus, CardType, CreateCardInput, UpdateCardInput } from '../../shared/api';
 import type { SqliteDatabase } from '../db/connection';
 
-const CARD_STATUSES: CardStatus[] = ['backlog', 'developing', 'untested', 'needs_fix', 'approved', 'released'];
+const CARD_STATUSES: CardStatus[] = ['backlog', 'developing', 'untested', 'needs_fix', 'agent_approved', 'human_approved', 'released'];
 const CARD_TYPES: CardType[] = ['task', 'bug', 'feature'];
 const CARD_PRIORITIES: CardPriority[] = ['low', 'normal', 'high', 'urgent'];
 const CARD_SOURCES: CardSource[] = ['manual', 'mcp'];
@@ -14,9 +14,10 @@ const STATUS_ORDER_CASE = `CASE status
   WHEN 'developing' THEN 1
   WHEN 'untested' THEN 2
   WHEN 'needs_fix' THEN 3
-  WHEN 'approved' THEN 4
-  WHEN 'released' THEN 5
-  ELSE 6
+  WHEN 'agent_approved' THEN 4
+  WHEN 'human_approved' THEN 5
+  WHEN 'released' THEN 6
+  ELSE 7
 END`;
 
 /** The terminal column — reaching it stamps completed_at. */

@@ -2,7 +2,14 @@
 // the standalone MCP server. tBoard is a Kanban board PER GIT REPO: a board is a
 // git repo the user adds, cards belong to a board and carry a git branch.
 
-export type CardStatus = 'backlog' | 'developing' | 'untested' | 'needs_fix' | 'approved' | 'released';
+export type CardStatus =
+  | 'backlog'
+  | 'developing'
+  | 'untested'
+  | 'needs_fix'
+  | 'agent_approved'
+  | 'human_approved'
+  | 'released';
 
 /** Lightweight card categorization. */
 export type CardType = 'task' | 'bug' | 'feature';
