@@ -39,7 +39,7 @@ It's **local-first** — everything lives in a single SQLite database on your ma
 - 📁 **Module links.** Associate a card with a subfolder of the repo (auto-discovered, monorepo-aware: `packages/*`, `apps/*`, …).
 - 🐞 **Typed cards.** Task, Bug, or Feature — colour-coded so bugs and features stand out at a glance. Full description on every card, previewed on the card face.
 - 🖱️ **Drag and drop.** Move cards between columns and reorder within a column. Priorities, statuses, and inline editing in a detail drawer.
-- 🔎 **Compose filters.** Narrow the board by branch, module, and type together.
+- 🔎 **Compose filters.** Narrow the board by branch, module, and type together — and trim the Released column by release date (today, last 7/30/90 days, or a custom date range).
 - 🤖 **Built-in MCP server.** A standalone stdio server lets MCP-compatible agents list/add boards, read branches & modules, and create/update/move cards — against the *same* database the app uses.
 - 🔒 **Local-first & private.** One SQLite file under your user data dir. No network, no sign-in.
 - 🌙 **Dark, focused UI.** Keyboard-friendly, accessible overlays, built to stay out of the way.

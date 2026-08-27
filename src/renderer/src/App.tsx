@@ -12,6 +12,11 @@ import type {
   TBoardApi,
   UploadFile,
 } from '../../shared/api';
+import {
+  RELEASED_FILTER_OPTIONS,
+  releasedCardVisible,
+  type ReleasedFilter,
+} from './releasedFilter';
 import { useFocusTrap } from './useFocusTrap';
 
 declare global {
@@ -231,6 +236,9 @@ export default function App() {
   const [branchFilter, setBranchFilter] = useState<string>(FILTER_ALL);
   const [moduleFilter, setModuleFilter] = useState<string>(FILTER_ALL);
   const [typeFilter, setTypeFilter] = useState<string>(FILTER_ALL);
+  const [releasedFilter, setReleasedFilter] = useState<ReleasedFilter>('all');
+  const [releasedFrom, setReleasedFrom] = useState('');
+  const [releasedTo, setReleasedTo] = useState('');
 
   const [renaming, setRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState('');
@@ -337,6 +345,7 @@ export default function App() {
   const hasUnmoduledCards = useMemo(() => cards.some((card) => card.module === null), [cards]);
 
   const visibleCards = useMemo(() => {
+    const now = new Date();
     return cards.filter((card) => {
       const branchOk =
         branchFilter === FILTER_ALL ||
@@ -345,9 +354,10 @@ export default function App() {
         moduleFilter === FILTER_ALL ||
         (moduleFilter === FILTER_NONE ? card.module === null : card.module === moduleFilter);
       const typeOk = typeFilter === FILTER_ALL || card.type === typeFilter;
-      return branchOk && moduleOk && typeOk;
+      const releasedOk = releasedCardVisible(card, releasedFilter, { from: releasedFrom, to: releasedTo }, now);
+      return branchOk && moduleOk && typeOk && releasedOk;
     });
-  }, [cards, branchFilter, moduleFilter, typeFilter]);
+  }, [cards, branchFilter, moduleFilter, typeFilter, releasedFilter, releasedFrom, releasedTo]);
 
   const cardsByStatus = useMemo(() => {
     const grouped = new Map<CardStatus, CardDto[]>(STATUSES.map((status) => [status, []]));
@@ -425,6 +435,9 @@ export default function App() {
     setBranchFilter(FILTER_ALL);
     setModuleFilter(FILTER_ALL);
     setTypeFilter(FILTER_ALL);
+    setReleasedFilter('all');
+    setReleasedFrom('');
+    setReleasedTo('');
     setSelectedCardId(null);
     setCardError(null);
     setComposerBranchTouched(false);
@@ -1359,6 +1372,48 @@ export default function App() {
           ) : null}
 
           {selectedBoard ? (
+            <label className="field inline narrow">
+              <span>Released</span>
+              <select
+                value={releasedFilter}
+                onChange={(event) => setReleasedFilter(event.target.value as ReleasedFilter)}
+                title="Show only cards released within this window. Other columns are not affected."
+              >
+                {RELEASED_FILTER_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+
+          {selectedBoard && releasedFilter === 'custom' ? (
+            <>
+              <label className="field inline narrow">
+                <span>From</span>
+                <input
+                  type="date"
+                  value={releasedFrom}
+                  max={releasedTo || undefined}
+                  onChange={(event) => setReleasedFrom(event.target.value)}
+                  aria-label="Released from date"
+                />
+              </label>
+              <label className="field inline narrow">
+                <span>To</span>
+                <input
+                  type="date"
+                  value={releasedTo}
+                  min={releasedFrom || undefined}
+                  onChange={(event) => setReleasedTo(event.target.value)}
+                  aria-label="Released to date"
+                />
+              </label>
+            </>
+          ) : null}
+
+          {selectedBoard ? (
             <button
               type="button"
               onClick={() => void refreshRepoMetaNow()}
@@ -1578,6 +1633,9 @@ export default function App() {
     setBranchFilter(FILTER_ALL);
     setModuleFilter(FILTER_ALL);
     setTypeFilter(FILTER_ALL);
+    setReleasedFilter('all');
+    setReleasedFrom('');
+    setReleasedTo('');
   }
 
   function renderBoardEmptyNote() {
